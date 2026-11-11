@@ -1,0 +1,9 @@
+{
+  "slug": "sample",
+  "enabled": false,
+  "prompt": "prompts/sample.md",
+  "schedule": {
+    "days": ["monday"],
+    "time": "09:00"
+  }
+}

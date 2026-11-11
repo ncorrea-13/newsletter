@@ -1,0 +1,5 @@
+{
+  "timezone": "Etc/UTC",
+  "agent": "codex",
+  "timeout_minutes": 45
+}

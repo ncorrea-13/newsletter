@@ -1,0 +1,10 @@
+services:
+  newsletter-bot:
+    build: .
+    init: true
+    pids_limit: 128
+    restart: unless-stopped
+    volumes:
+      - ./config:/config:ro
+      - ./prompts:/prompts:ro
+      - ./data:/data
