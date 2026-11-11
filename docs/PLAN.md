@@ -96,7 +96,7 @@ Cada historia lleva título, fuente, URL verificable, fecha disponible y resumen
 
 ## Imagen y distribución
 
-Propuesta inicial: multistage `golang:1-trixie` a `debian:trixie-slim`; binario con `CGO_ENABLED=0` cuando aplique, `-trimpath` y símbolos reducidos. Fijar versiones/digests reales, no inventados.
+Propuesta inicial: multistage `golang:1-trixie` a `debian:trixie-slim`; binario con `CGO_ENABLED=0` cuando aplique, `-trimpath` y símbolos reducidos. Versiones instaladas actualmente: Codex CLI `0.167.0`, Claude Code `2.1.319`, Supercronic `0.2.51`.
 
 Instalar paquetes mínimos justificados, Codex CLI oficial, Claude Code oficial y Supercronic oficial; verificar arquitectura, checksums disponibles, comandos de versión y ayuda. Crear usuario no root (propuesta UID/GID `10001`) y comprobar permisos reales de volúmenes.
 
