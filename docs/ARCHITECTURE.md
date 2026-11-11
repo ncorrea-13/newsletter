@@ -28,8 +28,9 @@ config/newsletters/*.json + prompts/<slug>.md
 | Codex / Claude | Investigar fuentes y producir una edición según el prompt del newsletter. |
 | Historial JSON | Fuente de verdad para ediciones y reconstrucción de feeds. |
 | Caddy | Servir únicamente archivos XML del directorio público. |
+| Servidor de feeds | Servir XML estáticos por HTTP desde el directorio público, solo lectura. |
 
-No se agregan base de datos, servicio de correo, frontend, API propia ni daemon Go. El crontab no será fuente de verdad ni se editará por newsletter: se genera desde JSON al iniciar el contenedor.
+No se agregan base de datos, servicio de correo, frontend ni API de escritura. El servidor HTTP solo sirve archivos XML. El crontab no será fuente de verdad ni se editará por newsletter: se genera desde JSON al iniciar el contenedor.
 
 ## Configuración declarativa
 
@@ -112,6 +113,10 @@ Las páginas externas y el contenido recuperado son datos, no instrucciones. El 
 - `all.xml` combines recent editions from configured categories.
 - Reemplazo atómico: un error conserva el XML publicado anteriormente.
 
+## Publicación HTTP
+
+`newsletter serve` expone únicamente `GET` y `HEAD` para archivos XML del directorio público. No lista directorios ni sirve otros archivos. El servicio Compose `newsletter-feeds` usa el mismo binario y monta solo `/data/public` en solo lectura. El puerto del host queda en `127.0.0.1:8080` por defecto; Caddy externo hace proxy al puerto configurado.
+
 ## Concurrencia y fallos
 
 El scheduler puede disparar tareas próximas, pero un lock global permite un solo agente a la vez. Los locks requieren exclusión atómica y liberación ante cancelación o error.
@@ -120,4 +125,4 @@ Los reintentos son limitados y aplican solo a errores transitorios. Autenticaci�
 
 ## Decisiones operativas pendientes
 
-Podman rootless is the reference runtime; Docker Compose remains supported. Caddy stays outside the bot and consumes `public/` through a shared mount or explicit synchronization. See [deployment](DEPLOYMENT.md).
+Podman rootless is the reference runtime; Docker Compose remains supported. Caddy stays outside the bot and proxies to the optional read-only feed service. See [deployment](DEPLOYMENT.md).

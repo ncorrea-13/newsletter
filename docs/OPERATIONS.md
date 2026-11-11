@@ -1,6 +1,6 @@
 # Operación y recuperación
 
-Este documento describe operación prevista. Destino de referencia: Podman rootless, con Docker Compose compatible. Caddy permanece externo.
+Este documento describe operación prevista. Destino de referencia: Podman rootless, con Docker Compose compatible. Caddy permanece externo y hace proxy al servicio de feeds. Iniciarlo con perfil `feeds` cuando se requiera publicar XML.
 
 ## Configuración de newsletters
 
@@ -36,7 +36,7 @@ Cada ejecución puede persistir JSON resumido en `/data/state/runs/`: ID, newsle
 | JSON inválido | Guardar error resumido, conservar historial y RSS previos; revisar salida estructurada del adaptador. |
 | URL o noticia inválida | Revisar evidencia y prompt; no degradar validación para forzar publicación. |
 | Feed viejo | Comprobar generación desde historial y permisos de `/data/public`; reconstruir con `newsletter generate-feeds`. |
-| Caddy no sirve XML | Confirmar document root solo-public, montaje/lectura, hostname, red y configuración compartida. |
+| Caddy no sirve XML | Confirmar servicio de feeds, puerto privado, hostname y configuración de proxy. |
 | Lock retenido | Verificar proceso propietario y mecanismo de lock antes de limpiar; no borrar lock activo. |
 
 ## Corrección y reconstrucción
@@ -59,7 +59,8 @@ No declarar backup válido sin prueba de restauración. Las credenciales no van 
 
 - Servir solamente XML de `public/`.
 - Mantener JSON, estado y credenciales privados.
-- Sin puerto propio, modo privilegiado o socket Docker.
+- Scheduler sin puerto propio; servicio HTTP solo lectura para XML, habilitado con perfil `feeds`.
+- Sin modo privilegiado o socket Docker.
 - Restringir permisos de binds y ejecución de agente.
 - Mantener timeout, validación de URLs y sanitización HTML.
 - Las páginas externas son datos no confiables.

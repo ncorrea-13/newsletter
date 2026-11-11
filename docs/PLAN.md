@@ -12,12 +12,12 @@ Migrar newsletters configurados a una aplicación self-hosted. El sistema invest
 - Codex CLI y Claude Code con distribuciones oficiales, probadas dentro de la imagen final.
 - Supercronic como scheduler.
 - JSON como persistencia; RSS 2.0 estático.
-- Caddy existente como servidor de archivos.
+- Caddy externo como proxy del servicio HTTP de feeds.
 - Usuario no root y credenciales persistentes fuera de la imagen.
 
 ### Fuera de alcance
 
-API HTTP propia, frontend, panel, base de datos, Redis, correo, AgentMail, n8n y agentes instalados en el host.
+API de escritura, frontend, panel, base de datos, Redis, correo, AgentMail, n8n y agentes instalados en el host. Se permite un servidor HTTP de solo lectura para XML estáticos.
 
 ## Tareas editoriales
 
@@ -52,6 +52,7 @@ newsletter status
 newsletter validate-config
 newsletter check-agents
 newsletter generate-crontab
+newsletter serve
 ```
 
 `run` valida configuración y slug, obtiene lock, calcula fecha editorial, construye contexto, ejecuta agente, valida y persiste edición, regenera RSS y registra resultado. `generate-feeds` no llama agentes ni modifica el historial. `status` no revela secretos. `check-agents` separa chequeos locales de operaciones que consumen uso. `generate-crontab` valida configuración y emite el schedule que consume Supercronic; el entrypoint lo ejecuta en cada arranque.
@@ -89,8 +90,9 @@ Cada historia lleva título, fuente, URL verificable, fecha disponible y resumen
 - Logs estructurados a stdout/stderr, sin razonamientos internos ni secretos.
 - Estado de ejecución JSON resumido bajo `/data/state/runs/`.
 - Bind mounts para historial, estado, feeds y autenticación.
-- Caddy sirve solo `public/`, sin listar directorios ni exponer datos privados.
-- Sin puertos publicados por el servicio bot; sin Docker socket ni modo privilegiado.
+- El servicio de feeds sirve solo XML desde `public/`, sin listar directorios ni exponer datos privados.
+- El puerto del servicio de feeds queda ligado a interfaz privada; Caddy externo publica el dominio.
+- Sin puertos en el servicio scheduler, Docker socket ni modo privilegiado.
 
 ## Imagen y distribución
 
