@@ -1,0 +1,12 @@
+/data/
+.env*
+!.env.example
+/auth/
+/history/
+/state/
+/public/
+/config/defaults.json
+/config/newsletters/*.json
+/prompts/*.md
+/docs/NEWSLETTERS.md
+/*.xml
