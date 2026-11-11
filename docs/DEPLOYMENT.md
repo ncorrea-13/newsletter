@@ -4,7 +4,7 @@
 
 Destino de referencia: Podman rootless. La imagen debe seguir siendo compatible con Docker/Compose. Esta decisión no autoriza cambios de red, DNS ni Caddy.
 
-Caddy queda fuera de la imagen y del Compose del bot. Puede servir los XML desde un montaje compartido o desde una copia sincronizada de `/data/public`; el segundo caso requiere sincronización operada fuera del bot. No implementar sincronización implícita.
+Caddy queda fuera de la imagen. Compose ofrece `newsletter-feeds`, un segundo servicio con el mismo binario que sirve XML estáticos desde `/data/public`, montado en solo lectura. Caddy externo hace proxy al puerto del host; no requiere compartir archivos entre hosts.
 
 Feeds pueden quedar internos o hacerse públicos mediante configuración externa de Caddy. La exposición pública requiere aprobación explícita. No abrir puertos, activar Funnel, ni modificar Caddy o DNS.
 
@@ -15,10 +15,10 @@ Feeds pueden quedar internos o hacerse públicos mediante configuración externa
 - Codex CLI y Claude Code aún no se incluyen: instalación, credenciales y generación no interactiva requieren validación dentro de la imagen final.
 - Usuario de ejecución no root; no instalar Go ni agentes en host.
 - Persistencia fuera de capa efímera: historia, estado, XML y sesiones de agente.
-- Sin puertos, privilegios, socket Docker ni proceso HTTP de Go.
+- El scheduler no publica puertos. El servicio de feeds ofrece HTTP de solo lectura; sin privilegios ni socket Docker.
 - Versión/digest y checksums fijados tras validar releases reales.
 
-El Compose del repo solo ejecuta el bot. No publica puertos ni inicia Caddy. Podman Compose usa un proveedor externo; Docker Compose funciona con el mismo archivo.
+El Compose no inicia Caddy. El servicio de feeds es opcional mediante perfil `feeds`. Podman Compose usa un proveedor externo; Docker Compose funciona con el mismo archivo.
 
 ## Directorios persistentes propuestos
 
@@ -35,17 +35,27 @@ config/newsletters/<slug>.json
 prompts/<slug>.md
 ```
 
-Solo `public/` se sirve con Caddy. Entre hosts, acordar montaje compartido o sincronización sin hacer accesible historia, estado o autenticación.
+El servicio de feeds monta solo `data/public/`, en solo lectura. No accede a historia, estado ni autenticación.
 
 El usuario de contenedor debe poder escribir en mounts privados y públicos del bot. Verificar UID/GID y mapeo rootless con el runtime elegido; no asumir que `chown` del host coincide con UID del contenedor.
 
 Montar `config/` y `prompts/` desde una ruta editable del host, read-only en el contenedor. El entrypoint valida los JSON, genera el crontab, comprueba sintaxis y arranca Supercronic. Tras editar horarios o prompts, reiniciar el contenedor; no se necesita rebuild de imagen ni cambio de código.
 
-Arranque local: `podman compose up --build -d` o `docker compose up --build -d`. Preparar `data/` con permisos para UID 10001 antes de iniciar. Compose no publica puertos; `data/public/` queda disponible para un Caddy configurado aparte.
+Preparar `data/` con permisos de escritura para UID 10001. Arranque del scheduler: `podman compose up --build -d` o `docker compose up --build -d`. Para incluir el servicio RSS, usar `podman compose --profile feeds up --build -d` o `docker compose --profile feeds up --build -d`.
+
+El puerto del servicio de feeds publica `8080` solo en `127.0.0.1` por defecto. Para Caddy en otro host, definir `FEED_BIND_ADDRESS` en `.env` con una interfaz privada alcanzable desde Caddy, y restringir acceso en la red. No ligar a `0.0.0.0` salvo decisión explícita.
+
+Rutas aceptadas: `GET /<slug>.xml` y `HEAD /<slug>.xml`. No se listan directorios ni se sirven archivos que no terminen en `.xml`. Ejemplo de sitio Caddy:
+
+```caddyfile
+feeds.example.test {
+	reverse_proxy <private-host-address>:8080
+}
+```
 
 ## Caddy externo
 
-El servicio Caddy existente debe montar únicamente el directorio de XML, en solo lectura. Si Caddy está en otro host, usar almacenamiento compartido o sincronización explícita. No exponer el padre, habilitar listado, ni servir `history/`, `state/` o credenciales. Definir hostname y exposición antes de editar Caddy.
+El Caddy existente debe hacer proxy solo al puerto privado del servicio de feeds. No apuntarlo al contenedor scheduler ni exponer servicios auxiliares. Definir hostname y exposición antes de editar Caddy.
 
 ## Autenticación de agentes (pendiente)
 

@@ -1,5 +1,6 @@
 services:
   newsletter-bot:
+    image: newsletter-bot:local
     build: .
     init: true
     pids_limit: 128
@@ -8,3 +9,18 @@ services:
       - ./config:/config:ro
       - ./prompts:/prompts:ro
       - ./data:/data
+
+  newsletter-feeds:
+    image: newsletter-bot:local
+    command: ["serve"]
+    profiles: ["feeds"]
+    init: true
+    pids_limit: 128
+    restart: unless-stopped
+    environment:
+      FEED_DIR: /data/public
+      FEED_LISTEN_ADDR: :8080
+    ports:
+      - "${FEED_BIND_ADDRESS:-127.0.0.1}:8080:8080"
+    volumes:
+      - ./data/public:/data/public:ro
