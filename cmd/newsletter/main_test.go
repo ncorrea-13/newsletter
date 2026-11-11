@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -40,6 +41,40 @@ func TestRunRejectsUnsupportedCommand(t *testing.T) {
 	err := run([]string{"run", "sample"}, &bytes.Buffer{}, "unused")
 	if err == nil || !strings.Contains(err.Error(), "usage:") {
 		t.Fatalf("run error = %v, want usage error", err)
+	}
+}
+
+func TestCheckAgentsChecksBothWithoutPrintingCommandOutput(t *testing.T) {
+	var output bytes.Buffer
+	var calls []string
+	err := checkAgents(&output, func(name string, args ...string) error {
+		calls = append(calls, name+" "+strings.Join(args, " "))
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := strings.Join(calls, ","), "codex login status,claude auth status"; got != want {
+		t.Fatalf("calls = %q, want %q", got, want)
+	}
+	if got, want := output.String(), "Codex: authenticated\nClaude Code: authenticated\n"; got != want {
+		t.Fatalf("output = %q, want %q", got, want)
+	}
+}
+
+func TestCheckAgentsReportsFailuresWithoutLeakingCommandOutput(t *testing.T) {
+	var output bytes.Buffer
+	err := checkAgents(&output, func(string, ...string) error {
+		return errors.New("provider output with sensitive details")
+	})
+	if err == nil || !strings.Contains(err.Error(), "Codex, Claude Code") {
+		t.Fatalf("error = %v, want both agents reported", err)
+	}
+	if strings.Contains(output.String(), "sensitive") || strings.Contains(err.Error(), "sensitive") {
+		t.Fatalf("provider output leaked: %q %v", output.String(), err)
+	}
+	if got, want := output.String(), "Codex: not authenticated or unavailable\nClaude Code: not authenticated or unavailable\n"; got != want {
+		t.Fatalf("output = %q, want %q", got, want)
 	}
 }
 

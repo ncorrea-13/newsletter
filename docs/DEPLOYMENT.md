@@ -12,7 +12,7 @@ Feeds pueden quedar internos o hacerse públicos mediante configuración externa
 
 - Imagen multistage: builder `golang:1-trixie`, runtime `debian:trixie-slim`.
 - Supercronic instalado desde release oficial fijada y verificada.
-- Codex CLI y Claude Code aún no se incluyen: instalación, credenciales y generación no interactiva requieren validación dentro de la imagen final.
+- Codex CLI `0.167.0` y Claude Code `2.1.319` se instalan desde fuentes oficiales; la build comprueba sus versiones.
 - Usuario de ejecución no root; no instalar Go ni agentes en host.
 - Persistencia fuera de capa efímera: historia, estado, XML y sesiones de agente.
 - El scheduler no publica puertos. El servicio de feeds ofrece HTTP de solo lectura; sin privilegios ni socket Docker.
@@ -28,6 +28,7 @@ El Compose no inicia Caddy. El servicio de feeds es opcional mediante perfil `fe
 ├── state/{runs,locks,events}/
 ├── public/
 └── auth/{codex,claude}/
+# Claude also stores ~/.claude.json under auth/.
 
 # Configuración editable, montada read-only en el contenedor
 config/defaults.json
@@ -37,7 +38,7 @@ prompts/<slug>.md
 
 El servicio de feeds monta solo `data/public/`, en solo lectura. No accede a historia, estado ni autenticación.
 
-El usuario de contenedor debe poder escribir en mounts privados y públicos del bot. Verificar UID/GID y mapeo rootless con el runtime elegido; no asumir que `chown` del host coincide con UID del contenedor.
+El usuario del contenedor debe poder escribir en `auth/` y los datos. Crear `auth/` con permisos privados y comprobar UID/GID con el runtime rootless; no asumir que `chown` del host coincide con UID 10001.
 
 Montar `config/` y `prompts/` desde una ruta editable del host, read-only en el contenedor. El entrypoint valida los JSON, genera el crontab, comprueba sintaxis y arranca Supercronic. Tras editar horarios o prompts, reiniciar el contenedor; no se necesita rebuild de imagen ni cambio de código.
 
@@ -57,17 +58,33 @@ feeds.example.test {
 
 El Caddy existente debe hacer proxy solo al puerto privado del servicio de feeds. No apuntarlo al contenedor scheduler ni exponer servicios auxiliares. Definir hostname y exposición antes de editar Caddy.
 
-## Autenticación de agentes (pendiente)
+## Autenticación de agentes
 
-No autenticar todavía: imagen no incluye agentes. Tras validar su integración, autenticar dentro del contenedor con HOME y mounts definitivos:
+Crear el directorio privado y construir la imagen:
 
 ```sh
-docker compose exec newsletter-bot codex login --device-auth
-docker compose exec newsletter-bot codex login status
-docker compose exec newsletter-bot bash
+install -d -m 0700 auth auth/codex auth/claude
+# Docker: sudo chown -R 10001:10001 auth
+# Rootless Podman: podman unshare chown -R 10001:10001 auth
+docker compose build
 ```
 
-Dentro de shell, iniciar `claude` y completar el flujo oficial soportado. Reemplazar `docker compose` por `podman compose` cuando corresponda.
+Autenticar desde terminal interactiva en el contenedor. Claude requiere flujo de navegador; abre la URL mostrada en tu equipo y completa login:
+
+```sh
+docker compose run --rm --entrypoint codex newsletter-bot login
+docker compose run --rm --entrypoint claude newsletter-bot
+```
+
+Reemplazar `docker compose` por `podman compose` cuando corresponda. Si Codex solicita autenticación por dispositivo, seguir el enlace y código que muestra; no asumir que el navegador se abre dentro del contenedor.
+
+Comprobar autenticación local sin iniciar generación:
+
+```sh
+docker compose run --rm newsletter-bot check-agents
+```
+
+`check-agents` ejecuta `codex login status` y `claude auth status`. No hace solicitudes de generación ni imprime la salida de autenticación del proveedor.
 
 Antes de automatizar, verificar rutas reales de credenciales, persistencia al recrear contenedor, permisos del usuario, expiración y reautenticación. No copiar sesiones al build ni guardar tokens en `.env` o Git. Suscripciones pueden tener límites de cuota/uso.
 

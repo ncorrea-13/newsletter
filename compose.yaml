@@ -9,6 +9,7 @@ services:
       - ./config:/config:ro
       - ./prompts:/prompts:ro
       - ./data:/data
+      - ./auth:/auth
 
   newsletter-feeds:
     image: newsletter-bot:local
