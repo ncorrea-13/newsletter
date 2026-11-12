@@ -77,16 +77,18 @@ podman-compose -f compose.yaml -f compose.podman.yaml build newsletter-bot
 
 El override Podman usa `slirp4netns` para redes rootless y evita depender de `nftables` para la red bridge predeterminada. Aplicarlo también en los comandos siguientes.
 
-Autenticar desde terminal interactiva en el contenedor. Claude abre un callback local en el puerto `1455`; publicarlo en loopback del host o el navegador no podrá conectarse. Codex puede evitar el callback con `--device-auth`:
+Autenticar desde terminal interactiva en el contenedor. Cada proveedor abre un callback local en loopback, que debe publicarse o el navegador no podrá conectarse: Codex usa `1455` y Claude usa `54545`. Codex puede evitar el callback con `--device-auth`:
 
 ```sh
-podman run --rm -it --network slirp4netns -v "$PWD/auth:/auth" --entrypoint codex localhost/newsletter-bot:local login --device-auth
-podman run --rm -it --network slirp4netns -p 127.0.0.1:1455:1455 -v "$PWD/auth:/auth" --entrypoint claude localhost/newsletter-bot:local
+podman run --rm -it --network slirp4netns -p 127.0.0.1:1455:1455 -v "$PWD/auth:/auth" --entrypoint codex localhost/newsletter-bot:local login
+podman run --rm -it --network slirp4netns -p 127.0.0.1:54545:54545 -v "$PWD/auth:/auth" --entrypoint claude localhost/newsletter-bot:local
 ```
 
-Si el puerto `1455` sigue ocupado, detener el contenedor de login anterior (`podman ps`) y reintentar. Si el callback no llega, usar `--network host` en lugar de `--network slirp4netns -p ...`. Sin `--device-auth`, Codex también usa el callback `1455` y necesita el mismo publish.
+Para Codex sin callback: `podman run --rm -it --network slirp4netns -v "$PWD/auth:/auth" --entrypoint codex newsletter-bot:local login --device-auth`.
 
-Para Docker: `docker run --rm -it -v "$PWD/auth:/auth" --entrypoint codex newsletter-bot:local login --device-auth` y `docker run --rm -it -p 127.0.0.1:1455:1455 -v "$PWD/auth:/auth" --entrypoint claude newsletter-bot:local`. Si Codex solicita autenticación por dispositivo, abrir la URL en tu equipo e ingresar el código mostrado; el contenedor no tiene navegador.
+Si el puerto sigue ocupado, detener el contenedor de login anterior (`podman ps`) y reintentar. Si el callback no llega, usar `--network host` en lugar de `--network slirp4netns -p ...`.
+
+Para Docker: `docker run --rm -it -p 127.0.0.1:1455:1455 -v "$PWD/auth:/auth" --entrypoint codex newsletter-bot:local login` y `docker run --rm -it -p 127.0.0.1:54545:54545 -v "$PWD/auth:/auth" --entrypoint claude newsletter-bot:local`. Si Codex solicita autenticación por dispositivo, abrir la URL en tu equipo e ingresar el código mostrado; el contenedor no tiene navegador.
 
 Comprobar autenticación local sin iniciar generación:
 
