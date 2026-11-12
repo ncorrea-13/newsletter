@@ -77,18 +77,23 @@ podman-compose -f compose.yaml -f compose.podman.yaml build newsletter-bot
 
 El override Podman usa `slirp4netns` para redes rootless y evita depender de `nftables` para la red bridge predeterminada. Aplicarlo también en los comandos siguientes.
 
-Autenticar desde terminal interactiva en el contenedor. Cada proveedor abre un callback local en loopback, que debe publicarse o el navegador no podrá conectarse: Codex usa `1455` y Claude usa `54545`. Codex puede evitar el callback con `--device-auth`:
+Autenticar desde terminal interactiva en el contenedor.
+
+Codex, usar siempre device auth. Su callback escucha en `127.0.0.1` dentro del contenedor; `-p` no alcanza ese loopback y el navegador recibe `connection reset`:
 
 ```sh
-podman run --rm -it --network slirp4netns -p 127.0.0.1:1455:1455 -v "$PWD/auth:/auth" --entrypoint codex localhost/newsletter-bot:local login
-podman run --rm -it --network slirp4netns -p 127.0.0.1:54545:54545 -v "$PWD/auth:/auth" --entrypoint claude localhost/newsletter-bot:local
+podman run --rm -it --network slirp4netns -v "$PWD/auth:/auth" --entrypoint codex localhost/newsletter-bot:local login --device-auth
 ```
 
-Para Codex sin callback: `podman run --rm -it --network slirp4netns -v "$PWD/auth:/auth" --entrypoint codex newsletter-bot:local login --device-auth`.
+Abrir la URL mostrada en tu equipo e ingresar el código. Si el contenedor de login anterior sigue activo (`podman ps`), detenerlo antes de reintentar.
 
-Si el puerto sigue ocupado, detener el contenedor de login anterior (`podman ps`) y reintentar. Si el callback no llega, usar `--network host` en lugar de `--network slirp4netns -p ...`.
+Claude abre su callback en `54545`, con el mismo problema potencial. Si el navegador no conecta:
 
-Para Docker: `docker run --rm -it -p 127.0.0.1:1455:1455 -v "$PWD/auth:/auth" --entrypoint codex newsletter-bot:local login` y `docker run --rm -it -p 127.0.0.1:54545:54545 -v "$PWD/auth:/auth" --entrypoint claude newsletter-bot:local`. Si Codex solicita autenticación por dispositivo, abrir la URL en tu equipo e ingresar el código mostrado; el contenedor no tiene navegador.
+```sh
+podman run --rm -it --network host -v "$PWD/auth:/auth" --entrypoint claude localhost/newsletter-bot:local
+```
+
+Para Docker: `docker run --rm -it -v "$PWD/auth:/auth" --entrypoint codex newsletter-bot:local login --device-auth`.
 
 Comprobar autenticación local sin iniciar generación:
 
