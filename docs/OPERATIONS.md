@@ -18,6 +18,8 @@ Al reiniciar, no ejecutar automáticamente todos los trabajos perdidos. Recupera
 
 ## Estado y logs
 
+`newsletter status` muestra por newsletter si está habilitado, agente, schedule y fecha de la última edición. No imprime títulos, resúmenes, prompts ni credenciales.
+
 El proceso principal previsto es Supercronic; logs estructurados van a stdout/stderr. Docker o el runtime elegido administra retención de logs.
 
 Registrar inicio/fin, slug, agente, fecha editorial, duración, resultado, número de historias/duplicados y errores resumidos. No guardar secretos ni razonamiento interno.
@@ -37,7 +39,7 @@ Cada ejecución puede persistir JSON resumido en `/data/state/runs/`: ID, newsle
 | URL o noticia inválida | Revisar evidencia y prompt; no degradar validación para forzar publicación. |
 | Feed viejo | Comprobar generación desde historial y permisos de `/data/public`; reconstruir con `newsletter generate-feeds`. |
 | Caddy no sirve XML | Confirmar servicio de feeds, puerto privado, hostname y configuración de proxy. |
-| Lock retenido | Verificar proceso propietario y mecanismo de lock antes de limpiar; no borrar lock activo. |
+| Lock retenido | El lock usa `flock` y se libera al morir el proceso; verificar que no haya otra ejecución activa antes de intervenir. No borrar archivos de lock en uso. |
 
 ## Corrección y reconstrucción
 
@@ -62,6 +64,6 @@ No declarar backup válido sin prueba de restauración. Las credenciales no van 
 - Scheduler sin puerto propio; servicio HTTP solo lectura para XML, habilitado con perfil `feeds`.
 - Sin modo privilegiado o socket Docker.
 - Restringir permisos de binds y ejecución de agente.
-- Mantener timeout, validación de URLs y sanitización HTML.
+- Mantener timeout, validación de URLs y escape XML del contenido.
 - Las páginas externas son datos no confiables.
 - Caddy y DNS requieren aprobación para cualquier cambio de exposición.
