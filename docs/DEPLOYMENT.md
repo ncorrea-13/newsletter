@@ -87,11 +87,13 @@ podman run --rm -it --network slirp4netns -v "$PWD/auth:/auth" --entrypoint code
 
 Abrir la URL mostrada en tu equipo e ingresar el código. Si el contenedor de login anterior sigue activo (`podman ps`), detenerlo antes de reintentar.
 
-Claude abre su callback en `54545`, con el mismo problema potencial. Si el navegador no conecta:
+Claude no tiene device auth verificado en la versión instalada. Su callback usa loopback con un puerto aleatorio en cada ejecución, así que no se puede publicar con `-p`. Usar host networking solo para este login:
 
 ```sh
-podman run --rm -it --network host -v "$PWD/auth:/auth" --entrypoint claude localhost/newsletter-bot:local
+podman run --rm -it --network host -v "$PWD/auth:/auth" --entrypoint claude localhost/newsletter-bot:local auth login
 ```
+
+Después, comprobar con `check-agents`.
 
 Para Docker: `docker run --rm -it -v "$PWD/auth:/auth" --entrypoint codex newsletter-bot:local login --device-auth`.
 
