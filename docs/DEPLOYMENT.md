@@ -18,7 +18,7 @@ Feeds pueden quedar internos o hacerse públicos mediante configuración externa
 - El scheduler no publica puertos. El servicio de feeds ofrece HTTP de solo lectura; sin privilegios ni socket Docker.
 - Versión/digest y checksums fijados tras validar releases reales.
 
-El Compose no inicia Caddy. El servicio de feeds es opcional mediante perfil `feeds`. Podman Compose usa un proveedor externo; Docker Compose funciona con el mismo archivo.
+El Compose no inicia Caddy. El servicio de feeds es opcional mediante perfil `feeds`. Usa `podman-compose` con el override `compose.podman.yaml` en Podman; Docker Compose usa solo `compose.yaml`.
 
 ## Directorios persistentes propuestos
 
@@ -28,7 +28,7 @@ El Compose no inicia Caddy. El servicio de feeds es opcional mediante perfil `fe
 ├── state/{runs,locks,events}/
 ├── public/
 └── auth/{codex,claude}/
-# Claude also stores ~/.claude.json under auth/.
+# Host path configured by NEWSLETTER_AUTH_DIR in .env; default /srv/newsletter-bot/auth.
 
 # Configuración editable, montada read-only en el contenedor
 config/defaults.json
@@ -38,11 +38,11 @@ prompts/<slug>.md
 
 El servicio de feeds monta solo `data/public/`, en solo lectura. No accede a historia, estado ni autenticación.
 
-El usuario del contenedor debe poder escribir en `auth/` y los datos. Crear `auth/` con permisos privados y comprobar UID/GID con el runtime rootless; no asumir que `chown` del host coincide con UID 10001.
+El usuario del contenedor debe poder escribir en `NEWSLETTER_AUTH_DIR` y los datos. Mantener el directorio de autenticación fuera del checkout, con permisos privados; comprobar UID/GID con el runtime rootless y no asumir que `chown` del host coincide con UID 10001.
 
 Montar `config/` y `prompts/` desde una ruta editable del host, read-only en el contenedor. El entrypoint valida los JSON, genera el crontab, comprueba sintaxis y arranca Supercronic. Tras editar horarios o prompts, reiniciar el contenedor; no se necesita rebuild de imagen ni cambio de código.
 
-Preparar `data/` con permisos de escritura para UID 10001. Arranque del scheduler: `podman compose up --build -d` o `docker compose up --build -d`. Para incluir el servicio RSS, usar `podman compose --profile feeds up --build -d` o `docker compose --profile feeds up --build -d`.
+Preparar `data/` con permisos de escritura para UID 10001. Arranque del scheduler: `podman-compose -f compose.yaml -f compose.podman.yaml up --build -d` o `docker compose up --build -d`. Para incluir RSS, agregar `--profile feeds` antes de `up`.
 
 El puerto del servicio de feeds publica `8080` solo en `127.0.0.1` por defecto. Para Caddy en otro host, definir `FEED_BIND_ADDRESS` en `.env` con una interfaz privada alcanzable desde Caddy, y restringir acceso en la red. No ligar a `0.0.0.0` salvo decisión explícita.
 
@@ -63,28 +63,35 @@ El Caddy existente debe hacer proxy solo al puerto privado del servicio de feeds
 Crear el directorio privado y construir la imagen:
 
 ```sh
-install -d -m 0700 auth auth/codex auth/claude
-# Docker: sudo chown -R 10001:10001 auth
-# Rootless Podman: podman unshare chown -R 10001:10001 auth
-docker compose build
+cp -n .env.example .env
+chmod 0600 .env
+sudo install -d -o "$USER" -g "$USER" -m 0700 /srv/newsletter-bot
+install -d -m 0700 /srv/newsletter-bot/auth /srv/newsletter-bot/auth/codex /srv/newsletter-bot/auth/claude
+# Rootless Podman:
+podman unshare chown -R 10001:10001 /srv/newsletter-bot/auth
+podman-compose -f compose.yaml -f compose.podman.yaml build newsletter-bot
 ```
+
+`.env` solo define la ruta; nunca guardes tokens ahí. `auth/` queda fuera del repositorio y del contexto de build. Para Docker rootful, asignar el directorio al UID `10001` con `sudo chown -R 10001:10001 /srv/newsletter-bot/auth` y construir con `docker compose build`.
+
+El override Podman usa `slirp4netns` para redes rootless y evita depender de `nftables` para la red bridge predeterminada. Aplicarlo también en los comandos siguientes.
 
 Autenticar desde terminal interactiva en el contenedor. Claude requiere flujo de navegador; abre la URL mostrada en tu equipo y completa login:
 
 ```sh
-docker compose run --rm --entrypoint codex newsletter-bot login
-docker compose run --rm --entrypoint claude newsletter-bot
+podman-compose -f compose.yaml -f compose.podman.yaml run --rm --entrypoint codex newsletter-bot login
+podman-compose -f compose.yaml -f compose.podman.yaml run --rm --entrypoint claude newsletter-bot
 ```
 
-Reemplazar `docker compose` por `podman compose` cuando corresponda. Si Codex solicita autenticación por dispositivo, seguir el enlace y código que muestra; no asumir que el navegador se abre dentro del contenedor.
+Para Docker, usar `docker compose run --rm --entrypoint codex newsletter-bot login` y `docker compose run --rm --entrypoint claude newsletter-bot`. Si Codex solicita autenticación por dispositivo, abrir la URL en tu equipo e ingresar el código mostrado; el contenedor no tiene navegador.
 
 Comprobar autenticación local sin iniciar generación:
 
 ```sh
-docker compose run --rm newsletter-bot check-agents
+podman-compose -f compose.yaml -f compose.podman.yaml run --rm newsletter-bot check-agents
 ```
 
-`check-agents` ejecuta `codex login status` y `claude auth status`. No hace solicitudes de generación ni imprime la salida de autenticación del proveedor.
+Para Docker: `docker compose run --rm newsletter-bot check-agents`. `check-agents` ejecuta `codex login status` y `claude auth status`; no genera contenido ni imprime la salida de autenticación del proveedor.
 
 Antes de automatizar, verificar rutas reales de credenciales, persistencia al recrear contenedor, permisos del usuario, expiración y reautenticación. No copiar sesiones al build ni guardar tokens en `.env` o Git. Suscripciones pueden tener límites de cuota/uso.
 

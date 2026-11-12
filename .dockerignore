@@ -1,6 +1,7 @@
 .git
 .gitignore
 data
+auth
 docs
 config
 prompts
