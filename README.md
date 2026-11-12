@@ -15,7 +15,7 @@ Newsletter Bot is a self-hosted application for scheduled editorial publishing. 
 
 No hay API de escritura, frontend, base de datos ni envío de correo. Un servicio HTTP de solo lectura sirve los XML; Caddy externo gestiona dominio y TLS.
 
-> **Estado:** configuration validation, cron generation, and container bootstrap implemented. Provider adapters and editorial prompts remain local and pending.
+> **Estado:** configuración, crontab, persistencia JSON, generación RSS y adaptadores Codex/Claude implementados. Pruebas usan agentes falsos; la autenticación y generación real aún requieren verificación local. Los prompts editoriales siguen pendientes.
 
 ## Flujo
 

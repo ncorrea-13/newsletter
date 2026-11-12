@@ -93,6 +93,24 @@ podman-compose -f compose.yaml -f compose.podman.yaml run --rm newsletter-bot ch
 
 Para Docker: `docker compose run --rm newsletter-bot check-agents`. `check-agents` ejecuta `codex login status` y `claude auth status`; no genera contenido ni imprime la salida de autenticación del proveedor.
 
+## Ejecutar una edición
+
+Después de autenticar y revisar el prompt local, ejecutar una vez el slug configurado:
+
+```sh
+podman-compose -f compose.yaml -f compose.podman.yaml run --rm newsletter-bot run <slug>
+```
+
+El proveedor elegido en el JSON investigará la web y consumirá uso. La edición del día no se reemplaza: el comando rechaza duplicados antes de llamar al proveedor.
+
+Para revisar configuración y última edición sin consumir uso:
+
+```sh
+podman-compose -f compose.yaml -f compose.podman.yaml run --rm newsletter-bot status
+```
+
+Para Docker: `docker compose run --rm newsletter-bot status`. No imprime títulos, resúmenes, prompts ni credenciales.
+
 Antes de automatizar, verificar rutas reales de credenciales, persistencia al recrear contenedor, permisos del usuario, expiración y reautenticación. No copiar sesiones al build ni guardar tokens en `.env` o Git. Suscripciones pueden tener límites de cuota/uso.
 
 ## Caddy, DNS y TLS
