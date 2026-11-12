@@ -9,7 +9,7 @@ services:
       - ./config:/config:ro
       - ./prompts:/prompts:ro
       - ./data:/data
-      - ${NEWSLETTER_AUTH_DIR:-/srv/newsletter-bot/auth}:/auth
+      - ${NEWSLETTER_AUTH_DIR:-./auth}:/auth
 
   newsletter-feeds:
     image: newsletter-bot:local
