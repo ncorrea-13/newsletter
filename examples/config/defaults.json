@@ -1,5 +1,7 @@
 {
   "timezone": "Etc/UTC",
   "agent": "codex",
-  "timeout_minutes": 45
+  "timeout_minutes": 45,
+  "history_context_editions": 5,
+  "feed_retention_editions": 30
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -15,10 +16,17 @@ import (
 
 var slugPattern = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 
+const defaultHistoryContextEditions = 5
+const maxHistoryContextEditions = 30
+const defaultFeedRetentionEditions = 30
+const maxFeedRetentionEditions = 200
+
 type Defaults struct {
-	Timezone       string `json:"timezone"`
-	Agent          string `json:"agent"`
-	TimeoutMinutes int    `json:"timeout_minutes"`
+	Timezone               string `json:"timezone"`
+	Agent                  string `json:"agent"`
+	TimeoutMinutes         int    `json:"timeout_minutes"`
+	HistoryContextEditions int    `json:"history_context_editions"`
+	FeedRetentionEditions  int    `json:"feed_retention_editions"`
 }
 
 type Schedule struct {
@@ -28,6 +36,9 @@ type Schedule struct {
 
 type Newsletter struct {
 	Slug           string   `json:"slug"`
+	Title          string   `json:"title"`
+	Description    string   `json:"description"`
+	SiteURL        string   `json:"site_url"`
 	Enabled        *bool    `json:"enabled"`
 	Prompt         string   `json:"prompt"`
 	Agent          string   `json:"agent"`
@@ -46,6 +57,12 @@ func Load(configDir string) (Configuration, error) {
 	var config Configuration
 	if err := decodeFile(filepath.Join(configDir, "defaults.json"), &config.Defaults); err != nil {
 		return config, fmt.Errorf("load defaults: %w", err)
+	}
+	if config.Defaults.HistoryContextEditions == 0 {
+		config.Defaults.HistoryContextEditions = defaultHistoryContextEditions
+	}
+	if config.Defaults.FeedRetentionEditions == 0 {
+		config.Defaults.FeedRetentionEditions = defaultFeedRetentionEditions
 	}
 	if err := validateDefaults(config.Defaults); err != nil {
 		return config, err
@@ -135,6 +152,12 @@ func validateDefaults(defaults Defaults) error {
 	if defaults.TimeoutMinutes < 1 {
 		return fmt.Errorf("timeout_minutes must be positive")
 	}
+	if defaults.HistoryContextEditions < 1 || defaults.HistoryContextEditions > maxHistoryContextEditions {
+		return fmt.Errorf("history_context_editions must be between 1 and %d", maxHistoryContextEditions)
+	}
+	if defaults.FeedRetentionEditions < 1 || defaults.FeedRetentionEditions > maxFeedRetentionEditions {
+		return fmt.Errorf("feed_retention_editions must be between 1 and %d", maxFeedRetentionEditions)
+	}
 	return nil
 }
 
@@ -147,6 +170,12 @@ func validateNewsletter(newsletter *Newsletter, filename, promptsDir string, def
 	}
 	if newsletter.Enabled == nil {
 		return fmt.Errorf("enabled is required")
+	}
+	if newsletter.SiteURL != "" {
+		siteURL, err := url.Parse(newsletter.SiteURL)
+		if err != nil || !siteURL.IsAbs() || siteURL.Hostname() == "" || siteURL.User != nil || (strings.ToLower(siteURL.Scheme) != "http" && strings.ToLower(siteURL.Scheme) != "https") {
+			return fmt.Errorf("site_url must be an absolute HTTP(S) URL without user information")
+		}
 	}
 	if newsletter.Prompt != "prompts/"+newsletter.Slug+".md" {
 		return fmt.Errorf("prompt must be prompts/%s.md", newsletter.Slug)
