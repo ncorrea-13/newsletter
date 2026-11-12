@@ -51,7 +51,7 @@ Una ejecución fallida no debe retirar ni sobrescribir la edición o RSS válido
 
 ## Backups y restauración
 
-Respaldar diariamente `history/` y `state/`. Respaldar `/srv/newsletter-bot/auth/` solo con almacenamiento cifrado y acceso restringido; alternativa: documentar reautenticación al restaurar. `public/` es regenerable desde historial.
+Respaldar diariamente `history/` y `state/`. Respaldar `NEWSLETTER_AUTH_DIR` (`./auth` o ruta absoluta configurada) solo con almacenamiento cifrado y acceso restringido; alternativa: documentar reautenticación al restaurar. `public/` es regenerable desde historial.
 
 Mantener retención configurable y copia externa opcional. Probar restauración: recuperar datos, revisar permisos del usuario de contenedor, ejecutar reconstrucción de feeds, validar XML y comprobar publicación desde Caddy.
 

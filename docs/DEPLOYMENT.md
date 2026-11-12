@@ -23,12 +23,11 @@ El Compose no inicia Caddy. El servicio de feeds es opcional mediante perfil `fe
 ## Directorios persistentes propuestos
 
 ```text
-/srv/newsletter-bot/
+auth/{codex,claude}/          # local: ./auth, production: absolute path outside the repo
+data/
 ├── history/<slug>/
 ├── state/{runs,locks,events}/
-├── public/
-└── auth/{codex,claude}/
-# Host path configured by NEWSLETTER_AUTH_DIR in .env; default /srv/newsletter-bot/auth.
+└── public/
 
 # Configuración editable, montada read-only en el contenedor
 config/defaults.json
@@ -36,9 +35,11 @@ config/newsletters/<slug>.json
 prompts/<slug>.md
 ```
 
+`NEWSLETTER_AUTH_DIR` acepta ruta relativa al compose o absoluta. Para producción, usar una ruta absoluta fuera del checkout, por ejemplo `/srv/newsletter-bot/auth`.
+
 El servicio de feeds monta solo `data/public/`, en solo lectura. No accede a historia, estado ni autenticación.
 
-El usuario del contenedor debe poder escribir en `NEWSLETTER_AUTH_DIR` y los datos. Mantener el directorio de autenticación fuera del checkout, con permisos privados; comprobar UID/GID con el runtime rootless y no asumir que `chown` del host coincide con UID 10001.
+El usuario del contenedor debe poder escribir en `NEWSLETTER_AUTH_DIR` y los datos. Mantener permisos privados; comprobar UID/GID con el runtime rootless y no asumir que `chown` del host coincide con UID 10001.
 
 Montar `config/` y `prompts/` desde una ruta editable del host, read-only en el contenedor. El entrypoint valida los JSON, genera el crontab, comprueba sintaxis y arranca Supercronic. Tras editar horarios o prompts, reiniciar el contenedor; no se necesita rebuild de imagen ni cambio de código.
 
@@ -60,19 +61,19 @@ El Caddy existente debe hacer proxy solo al puerto privado del servicio de feeds
 
 ## Autenticación de agentes
 
-Crear el directorio privado y construir la imagen:
+Con `NEWSLETTER_AUTH_DIR=./auth`, crear el directorio privado en el checkout y construir la imagen:
 
 ```sh
-cp -n .env.example .env
-chmod 0600 .env
-sudo install -d -o "$USER" -g "$USER" -m 0700 /srv/newsletter-bot
-install -d -m 0700 /srv/newsletter-bot/auth /srv/newsletter-bot/auth/codex /srv/newsletter-bot/auth/claude
+mkdir -p auth/codex auth/claude
+chmod 0700 auth auth/codex auth/claude
 # Rootless Podman:
-podman unshare chown -R 10001:10001 /srv/newsletter-bot/auth
+podman unshare chown -R 10001:10001 auth
 podman-compose -f compose.yaml -f compose.podman.yaml build newsletter-bot
 ```
 
-`.env` solo define la ruta; nunca guardes tokens ahí. `auth/` queda fuera del repositorio y del contexto de build. Para Docker rootful, asignar el directorio al UID `10001` con `sudo chown -R 10001:10001 /srv/newsletter-bot/auth` y construir con `docker compose build`.
+`auth/` queda ignorado por Git y fuera del contexto de build. Para Docker rootful, ejecutar `sudo chown -R 10001:10001 auth`. Para producción, apuntar `NEWSLETTER_AUTH_DIR` a una ruta absoluta fuera del repo y aplicar el mismo ownership.
+
+`.env` solo define la ruta; nunca guardes tokens ahí.
 
 El override Podman usa `slirp4netns` para redes rootless y evita depender de `nftables` para la red bridge predeterminada. Aplicarlo también en los comandos siguientes.
 
