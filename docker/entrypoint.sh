@@ -1,4 +1,6 @@
 #!/bin/sh
+# Copyright (c) 2026 Nicolás Correa
+# SPDX-License-Identifier: MIT
 set -eu
 
 case "${1:-scheduler}" in

@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Nicolás Correa
+// SPDX-License-Identifier: MIT
+
 package feedserver
 
 import (

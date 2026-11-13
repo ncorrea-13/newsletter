@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-Ejecutar newsletters configurados mediante agentes de IA, conservar ediciones en JSON y publicar RSS 2.0 estático. El proceso no escucha conexiones ni ofrece API.
+Ejecutar newsletters con agentes de IA, guardar las ediciones en JSON y publicar RSS 2.0 estático. El proceso no escucha conexiones ni ofrece API de escritura.
 
 ## Componentes
 
@@ -13,24 +13,23 @@ config/newsletters/*.json + prompts/<slug>.md
           └── newsletter run <slug>
               ├── config + prompt editorial
               ├── historial reciente y lock por newsletter
-              ├── adaptador Codex o Claude
-              ├── validación del contrato JSON
+              ├── adaptador Codex o Claude (sin escritura)
+              ├── validación y sanitización del contrato
               ├── historial por fecha editorial
               └── regeneración atómica de feeds RSS
 ```
 
 | Componente | Responsabilidad |
 | --- | --- |
-| Configuración JSON | Declarar newsletter, prompt, agente, frecuencia y opciones operativas. |
-| Generador de schedule | Descubrir y validar configuraciones; producir crontab para Supercronic. |
-| Supercronic | Ejecutar las tareas declaradas por el crontab generado. |
-| CLI Go | Configuración, locks, procesos, validación, persistencia, logs y feeds. |
-| Codex / Claude | Investigar fuentes y producir una edición según el prompt del newsletter. |
-| Historial JSON | Fuente de verdad para ediciones y reconstrucción de feeds. |
-| Caddy | Servir únicamente archivos XML del directorio público. |
-| Servidor de feeds | Servir XML estáticos por HTTP desde el directorio público, solo lectura. |
+| Configuración JSON | Newsletter, prompt, agente, modelo, horario y opciones operativas. |
+| Generador de schedule | Valida las configuraciones y produce el crontab para Supercronic. |
+| Supercronic | Ejecuta las tareas del crontab generado. |
+| CLI Go | Configuración, locks, validación, persistencia, logs y feeds. |
+| Codex / Claude | Investigan fuentes y redactan una edición según el prompt. |
+| Historial JSON | Fuente de verdad de las ediciones. Los feeds salen de aquí. |
+| Servidor de feeds | Sirve XML estáticos desde `data/public/`, en solo lectura. |
 
-No se agregan base de datos, servicio de correo, frontend ni API de escritura. El servidor HTTP solo sirve archivos XML. El crontab no será fuente de verdad ni se editará por newsletter: se genera desde JSON al iniciar el contenedor.
+El proyecto no usa base de datos, servicio de correo, frontend ni API de escritura. El crontab no es fuente de verdad: Go lo genera desde los JSON al iniciar el contenedor.
 
 ## Configuración declarativa
 
@@ -41,92 +40,110 @@ config/
 prompts/<slug>.md
 ```
 
-Cada JSON representa un newsletter y referencia su prompt. Ejemplo conceptual:
+Cada JSON describe un newsletter y referencia su prompt:
 
 ```json
 {
-  "slug": "sample",
+  "slug": "ejemplo",
   "enabled": true,
-  "prompt": "prompts/sample.md",
+  "prompt": "prompts/ejemplo.md",
   "agent": "codex",
+  "model": "gpt-6-luna",
   "schedule": {
-    "days": ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"],
+    "days": ["monday", "wednesday", "friday"],
     "time": "06:00"
   },
   "timeout_minutes": 45
 }
 ```
 
-`config/defaults.json` contiene timezone y defaults comunes, por ejemplo agente, timeout, contexto histórico y retención RSS. `history_context_editions` controla cuántas ediciones recientes recibe el agente; su default es 5 y el máximo 30. Cada newsletter declara solo sus diferencias. La frecuencia vive junto a ese newsletter, no dentro del prompt ni en un crontab editado a mano. Cada newsletter elige `agent` (`codex` o `claude`) y, opcionalmente, `model`; si `model` falta, el CLI usa su modelo por defecto.
+`config/defaults.json` define la zona horaria y los valores comunes: agente, timeout, contexto histórico, retención de feeds y `feed_base_url`.
 
-Correspondencia 1:1 por slug: `config/newsletters/<slug>.json` y `prompts/<slug>.md`. El validador exige que cada prompt exista y corresponda al slug.
+- `history_context_editions`: ediciones recientes que recibe el agente. Default 5, máximo 30.
+- `feed_retention_editions`: ítems por feed. Default 30, máximo 200.
+- `feed_base_url`: base pública de los feeds. Si un newsletter no define `site_url`, su canal apunta a `<base>/<slug>.xml`.
 
-Al iniciar, la aplicación descubre `config/newsletters/*.json` y valida slugs únicos, rutas de prompt, días, horarios, agente y valores efectivos. `enabled: false` excluye la tarea. La configuración inválida detiene el arranque antes de Supercronic.
+Cada slug tiene un JSON y un prompt con el mismo nombre. El validador comprueba que el prompt exista, que esté dentro de `prompts/` y que el slug sea único. Si una configuración es inválida, el arranque se detiene antes de Supercronic.
 
-La aplicación genera un crontab temporal y luego ejecuta Supercronic. Cambiar JSON o Markdown no requiere cambiar Go; reiniciar el contenedor carga el prompt y schedule nuevos. No se requiere recarga en caliente.
-
-No hace falta un formateador separado al inicio. Go construye el contexto del agente desde config, prompt e historial; después del agente, Go valida y normaliza el JSON antes de publicar. El generador de crontab solo traduce schedule JSON al formato requerido por Supercronic.
-
-Montar `config/` y `prompts/` desde el host como archivos editables y read-only dentro del contenedor. Resolver rutas de prompts dentro del directorio permitido y rechazar rutas que escapen de él.
+Cambiar un JSON o un prompt no requiere tocar Go. Reiniciar el contenedor aplica los cambios. No hay recarga en caliente.
 
 ## Ejecución de una edición
 
 1. Validar slug y configuración.
-2. Adquirir lock por newsletter para impedir duplicados del mismo slug.
-3. Calcular timestamp UTC y fecha editorial local.
-4. Leer prompt y contexto compacto de ediciones recientes.
-5. Ejecutar el proveedor mediante proceso separado y con timeout.
-6. Validar estructura, campos, URL, fechas y contenido HTML.
-7. Guardar JSON con archivo temporal y rename atómico.
-8. Regenerar feed individual y feed combinado; validar XML antes del reemplazo.
-9. Registrar resultado resumido y liberar lock.
+2. Tomar el lock del newsletter. Una segunda ejecución del mismo slug falla.
+3. Calcular la fecha editorial en la zona horaria configurada.
+4. Leer el prompt y el contexto compacto de ediciones recientes.
+5. Ejecutar el proveedor como proceso separado, con timeout.
+6. Validar el contrato de salida (ver abajo).
+7. Guardar la edición con archivo temporal y rename atómico.
+8. Regenerar el feed del newsletter y `all.xml`, y validarlos antes de reemplazarlos.
+9. Registrar el resultado resumido y liberar el lock.
 
-Una fecha editorial ya existente no se reemplaza de forma implícita. Las correcciones requieren operación explícita y respaldo.
+Una fecha editorial existente no se reemplaza de forma automática. Para corregir una edición, hace falta una operación explícita y un respaldo.
+
+## Contrato de salida
+
+El agente devuelve un único objeto JSON, sin texto alrededor:
+
+```json
+{
+  "title": "Título corto de la edición",
+  "content_html": "<h1>Título</h1><p>Cuerpo de la edición.</p>",
+  "stories": [
+    {
+      "title": "Título de la noticia",
+      "source": "Nombre del medio",
+      "url": "https://example.com/article",
+      "published_at": "2026-11-11",
+      "summary": "Resumen breve con el dato principal."
+    }
+  ]
+}
+```
+
+- `title`, `content_html` y `stories` son obligatorios. El esquema está en `internal/agent/agent.go`.
+- `stories` alimenta la deduplicación: ninguna URL puede repetirse dentro de la edición ni respecto del contexto reciente.
+- `content_html` pasa por una lista blanca de etiquetas (`p`, `h1` a `h3`, `ul`, `li`, `a`, `strong`, `em`, `br`, `img`) y atributos (`href`, `src`, `alt`, `width`). Cualquier otra etiqueta, un esquema distinto de `http(s)`, un `<` suelto o un comentario rechaza la edición.
+- Las ediciones guardadas antes de `content_html` conservan su resumen plano en el feed.
 
 ## Persistencia
 
 ```text
-/data/history/<slug>/YYYY-MM-DD.json
-/data/state/runs/*.json
-/data/state/locks/
-/data/state/events/events.json
-/data/public/<slug>.xml
-/data/public/all.xml
+data/history/<slug>/YYYY-MM-DD.json   ediciones completas (fuente de verdad)
+data/state/runs/*.json                resumen de cada ejecución
+data/state/locks/                     locks de flock
+data/public/<slug>.xml                feed por newsletter
+data/public/all.xml                   feed combinado
 ```
 
-`history/` conserva las ediciones completas. `state/` guarda estado operativo y seguimiento de eventos IT. `public/` contiene solo los feeds servibles. Las credenciales de agente se montan en sus rutas reales verificadas y permanecen privadas.
+El historial no se purga. Los feeds se derivan del historial: `newsletter generate-feeds` los reconstruye sin llamar a ningún agente.
 
-Los feeds son derivados del historial y pueden reconstruirse con `newsletter generate-feeds`. `feed_retention_editions` limita los ítems por feed; su default es 30 y el máximo 200. El historial no se purga.
+## Feeds RSS
 
-## Contrato editorial y confianza
-
-El resultado del agente es entrada no confiable. Go valida JSON estricto, slug, fechas, campos obligatorios y URLs absolutas. `content_html` pasa por una lista blanca de etiquetas y atributos (`p`, `h1`–`h3`, `ul`, `li`, `a`, `strong`, `em`, `br`, `img`); cualquier otra etiqueta, esquema distinto de http(s), `<` suelto o comentario rechaza la edición. El RSS escapa ese HTML como texto XML dentro de `<description>`; el lector lo renderiza. Las ediciones anteriores sin `content_html` conservan el resumen plano.
-
-Las páginas externas y el contenido recuperado son datos, no instrucciones. El agente no modifica configuración, prompts, historial ni directorio público. Su salida pasa por validación antes de persistirse.
-
-Codex se ejecuta sin herramientas de shell (`features.shell_tool=false`) y con sandbox de solo lectura; Claude Code solo recibe `WebSearch` y `WebFetch`. Esa restricción de herramientas elimina la ruta de lectura de archivos locales, incluido el directorio de credenciales, y el sandbox además impide escrituras.
-
-## RSS
-
-- RSS 2.0 con `<description>` que contiene el HTML sanitizado de la edición, escapado como texto XML.
-- Canal con `title` y `description` del newsletter. El `<link>` del canal sale de `site_url` si está definido; si no, de `feed_base_url` (en `defaults.json`) más `/<slug>.xml`; si tampoco hay base, del enlace del ítem más reciente.
-- Un ítem por edición completa.
-- GUID estable derivado de newsletter y fecha editorial.
-- Orden cronológico descendente.
-- `all.xml` combines recent editions from configured categories.
-- Reemplazo atómico: un error conserva el XML publicado anteriormente.
-- Al regenerar, se eliminan XML de slugs que ya no están configurados.
+- RSS 2.0. Cada edición es un ítem con GUID estable `<slug>:<fecha>`, en orden descendente.
+- `<description>` contiene el HTML sanitizado de la edición, escapado como texto XML. El lector lo renderiza.
+- El `<link>` del canal sale de `site_url`. Si falta, sale de `feed_base_url` más `/<slug>.xml`. Si tampoco hay base, sale del enlace del ítem más reciente.
+- El reemplazo es atómico: si falla la generación, queda el XML anterior publicado.
+- Al regenerar, se borran los XML de slugs que ya no están configurados.
 
 ## Publicación HTTP
 
-`newsletter serve` expone únicamente `GET` y `HEAD` para archivos XML del directorio público. No lista directorios ni sirve otros archivos. El servicio Compose `newsletter-feeds` usa el mismo binario y monta solo `/data/public` en solo lectura. El puerto del host queda en `127.0.0.1:8080` por defecto; Caddy externo hace proxy al puerto configurado.
+`newsletter serve` acepta solo `GET` y `HEAD` sobre archivos `.xml` del directorio público. No lista directorios ni sirve otros archivos. El servicio `newsletter-feeds` usa el mismo binario y monta `data/public` en solo lectura. El despliegue decide qué interfaz y qué puerto se publican (ver [DEPLOYMENT.md](DEPLOYMENT.md)).
+
+## Importación de historial
+
+`newsletter import-history <directorio>` convierte un export de correos de ediciones anteriores en ediciones del historial. Aplica el mismo contrato: el HTML pasa por la lista blanca, cada edición necesita al menos una historia con enlace y nunca sobrescribe una fecha existente. `--dry-run` muestra el plan sin escribir nada.
 
 ## Concurrencia y fallos
 
-El scheduler puede ejecutar en paralelo newsletters distintos; cada slug tiene su propio lock y una corrida duplicada del mismo slug falla. La regeneración de feeds usa un lock global bloqueante para serializar escrituras de RSS; `generate-feeds` usa el mismo lock sin espera. Los locks usan `flock` del kernel y se liberan al terminar el proceso, incluso tras una caída.
+- Los newsletters distintos pueden correr en paralelo. Cada slug tiene su propio lock.
+- La regeneración de feeds usa un lock global, así que dos escrituras de RSS no se pisan.
+- Los locks usan `flock` del kernel. Se liberan al terminar el proceso, incluso tras una caída.
+- Los reintentos son limitados y solo aplican a errores transitorios. Autenticación inválida, cuota y errores editoriales no se reintentan.
+- Al reiniciar, el scheduler no ejecuta en lote las tareas perdidas.
 
-Los reintentos son limitados y aplican solo a errores transitorios. Autenticación inválida, límites de uso y errores editoriales no se reintentan indefinidamente. Al reiniciar, no se ejecutan en lote tareas perdidas.
+## Confianza
 
-## Decisiones operativas pendientes
+El resultado del agente y las páginas que consulta son datos no confiables. Go valida el contrato antes de guardar nada.
 
-Podman rootless is the reference runtime; Docker Compose remains supported. Caddy stays outside the bot and proxies to the optional read-only feed service. See [deployment](DEPLOYMENT.md).
+Codex corre sin herramientas de shell (`features.shell_tool=false`) y con sandbox de solo lectura. Claude Code solo recibe `WebSearch` y `WebFetch`. Así el agente no tiene ruta para leer archivos locales, incluido el directorio de credenciales, y el sandbox le impide escribir. El agente no modifica configuración, prompts, historial ni directorio público.

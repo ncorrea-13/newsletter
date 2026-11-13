@@ -1,6 +1,5 @@
 services:
-  newsletter-bot:
-    network_mode: slirp4netns
-
+  # El bot no usa slirp4netns: necesita la red "agent" de compose, que es interna.
+  # El feed sigue en slirp4netns, como antes.
   newsletter-feeds:
     network_mode: slirp4netns
