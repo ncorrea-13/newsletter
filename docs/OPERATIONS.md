@@ -1,6 +1,6 @@
 # Operación y recuperación
 
-Este documento describe operación prevista. Destino de referencia: Podman rootless, con Docker Compose compatible. Caddy permanece externo.
+Este documento describe operación prevista. Destino de referencia: Podman rootless, con Docker Compose compatible. Caddy permanece externo y hace proxy al servicio de feeds. Iniciarlo con perfil `feeds` cuando se requiera publicar XML.
 
 ## Configuración de newsletters
 
@@ -18,7 +18,9 @@ Al reiniciar, no ejecutar automáticamente todos los trabajos perdidos. Recupera
 
 ## Estado y logs
 
-El proceso principal previsto es Supercronic; logs estructurados van a stdout/stderr. Docker o el runtime elegido administra retención de logs.
+`newsletter status` muestra por newsletter si está habilitado, agente, schedule y fecha de la última edición. No imprime títulos, resúmenes, prompts ni credenciales.
+
+El proceso principal previsto es Supercronic; logs estructurados van a stdout/stderr. Docker o el runtime elegido administra retención de logs. Cada `run` emite eventos JSON de inicio y fin con newsletter, agente, `model_requested`, resultado y duración. Si `model` no está configurado, registra `provider-default`; el log no puede confirmar qué versión resuelve el proveedor detrás de un alias.
 
 Registrar inicio/fin, slug, agente, fecha editorial, duración, resultado, número de historias/duplicados y errores resumidos. No guardar secretos ni razonamiento interno.
 
@@ -36,8 +38,8 @@ Cada ejecución puede persistir JSON resumido en `/data/state/runs/`: ID, newsle
 | JSON inválido | Guardar error resumido, conservar historial y RSS previos; revisar salida estructurada del adaptador. |
 | URL o noticia inválida | Revisar evidencia y prompt; no degradar validación para forzar publicación. |
 | Feed viejo | Comprobar generación desde historial y permisos de `/data/public`; reconstruir con `newsletter generate-feeds`. |
-| Caddy no sirve XML | Confirmar document root solo-public, montaje/lectura, hostname, red y configuración compartida. |
-| Lock retenido | Verificar proceso propietario y mecanismo de lock antes de limpiar; no borrar lock activo. |
+| Caddy no sirve XML | Confirmar servicio de feeds, puerto privado, hostname y configuración de proxy. |
+| Lock retenido | El lock usa `flock` y se libera al morir el proceso; verificar que no haya otra ejecución activa antes de intervenir. No borrar archivos de lock en uso. |
 
 ## Corrección y reconstrucción
 
@@ -49,7 +51,7 @@ Una ejecución fallida no debe retirar ni sobrescribir la edición o RSS válido
 
 ## Backups y restauración
 
-Respaldar diariamente `history/` y `state/`. Respaldar `auth/` solo con almacenamiento cifrado y acceso restringido; alternativa: documentar reautenticación al restaurar. `public/` es regenerable desde historial.
+Respaldar diariamente `history/` y `state/`. Respaldar `NEWSLETTER_AUTH_DIR` (`./auth` o ruta absoluta configurada) solo con almacenamiento cifrado y acceso restringido; alternativa: documentar reautenticación al restaurar. `public/` es regenerable desde historial.
 
 Mantener retención configurable y copia externa opcional. Probar restauración: recuperar datos, revisar permisos del usuario de contenedor, ejecutar reconstrucción de feeds, validar XML y comprobar publicación desde Caddy.
 
@@ -59,8 +61,9 @@ No declarar backup válido sin prueba de restauración. Las credenciales no van 
 
 - Servir solamente XML de `public/`.
 - Mantener JSON, estado y credenciales privados.
-- Sin puerto propio, modo privilegiado o socket Docker.
+- Scheduler sin puerto propio; servicio HTTP solo lectura para XML, habilitado con perfil `feeds`.
+- Sin modo privilegiado o socket Docker.
 - Restringir permisos de binds y ejecución de agente.
-- Mantener timeout, validación de URLs y sanitización HTML.
+- Mantener timeout, validación de URLs y escape XML del contenido.
 - Las páginas externas son datos no confiables.
 - Caddy y DNS requieren aprobación para cualquier cambio de exposición.

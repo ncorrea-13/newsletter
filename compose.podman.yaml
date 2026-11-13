@@ -1,0 +1,6 @@
+services:
+  newsletter-bot:
+    network_mode: slirp4netns
+
+  newsletter-feeds:
+    network_mode: slirp4netns

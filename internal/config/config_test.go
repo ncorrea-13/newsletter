@@ -42,8 +42,57 @@ func TestLoadAppliesDefaultsAndMapsOnePromptPerNewsletter(t *testing.T) {
 	if newsletter.Agent != "codex" || newsletter.TimeoutMinutes != 30 {
 		t.Fatalf("defaults not applied: %+v", newsletter)
 	}
+	if config.Defaults.HistoryContextEditions != 5 {
+		t.Fatalf("history context editions = %d, want default 5", config.Defaults.HistoryContextEditions)
+	}
+	if config.Defaults.FeedRetentionEditions != 30 {
+		t.Fatalf("feed retention editions = %d, want default 30", config.Defaults.FeedRetentionEditions)
+	}
 	if newsletter.PromptPath != filepath.Join(root, "..", "prompts", "sample.md") {
 		t.Fatalf("unexpected prompt path: %q", newsletter.PromptPath)
+	}
+}
+
+func TestLoadRejectsExcessiveHistoryContext(t *testing.T) {
+	root := writeFixture(t, "sample", `{"slug":"sample","enabled":true,"prompt":"prompts/sample.md","schedule":{"days":["monday"],"time":"06:00"}}`, "prompt")
+	if err := os.WriteFile(filepath.Join(root, "defaults.json"), []byte(`{"timezone":"Etc/UTC","agent":"codex","timeout_minutes":30,"history_context_editions":31}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(root); err == nil || !strings.Contains(err.Error(), "history_context_editions") {
+		t.Fatalf("Load error = %v, want history context range error", err)
+	}
+}
+
+func TestLoadRejectsExcessiveFeedRetention(t *testing.T) {
+	root := writeFixture(t, "sample", `{"slug":"sample","enabled":true,"prompt":"prompts/sample.md","schedule":{"days":["monday"],"time":"06:00"}}`, "prompt")
+	if err := os.WriteFile(filepath.Join(root, "defaults.json"), []byte(`{"timezone":"Etc/UTC","agent":"codex","timeout_minutes":30,"feed_retention_editions":201}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(root); err == nil || !strings.Contains(err.Error(), "feed_retention_editions") {
+		t.Fatalf("Load error = %v, want feed retention range error", err)
+	}
+}
+
+func TestLoadAcceptsAndRejectsModelValues(t *testing.T) {
+	body := func(model string) string {
+		return `{"slug":"sample","enabled":true,"prompt":"prompts/sample.md","model":"` + model + `","schedule":{"days":["monday"],"time":"06:00"}}`
+	}
+	root := writeFixture(t, "sample", body("gpt-5.5"), "prompt")
+	if loaded, err := Load(root); err != nil || loaded.Newsletters[0].Model != "gpt-5.5" {
+		t.Fatalf("valid model rejected: %v", err)
+	}
+	for _, model := range []string{"-x", "--sandbox", "bad model", strings.Repeat("a", 101)} {
+		root := writeFixture(t, "sample", body(model), "prompt")
+		if _, err := Load(root); err == nil || !strings.Contains(err.Error(), "model must be") {
+			t.Fatalf("model %q: Load error = %v, want model validation error", model, err)
+		}
+	}
+}
+
+func TestLoadRejectsInvalidFeedSiteURL(t *testing.T) {
+	root := writeFixture(t, "sample", `{"slug":"sample","enabled":true,"prompt":"prompts/sample.md","site_url":"javascript:alert(1)","schedule":{"days":["monday"],"time":"06:00"}}`, "prompt")
+	if _, err := Load(root); err == nil || !strings.Contains(err.Error(), "must be an absolute HTTP(S) URL") {
+		t.Fatalf("Load error = %v, want invalid site_url error", err)
 	}
 }
 

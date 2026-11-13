@@ -13,9 +13,9 @@
 
 Newsletter Bot is a self-hosted application for scheduled editorial publishing. Each newsletter uses a JSON configuration and a separate Markdown prompt. Supercronic runs schedules generated from JSON; Codex CLI or Claude Code research and draft; Go validates editions and regenerates static RSS feeds.
 
-No hay API HTTP, frontend, base de datos ni envío de correo. Caddy sirve los XML estáticos desde un directorio compartido.
+No hay API de escritura, frontend, base de datos ni envío de correo. Un servicio HTTP de solo lectura sirve los XML; Caddy externo gestiona dominio y TLS.
 
-> **Estado:** configuration validation, cron generation, and container bootstrap implemented. Provider adapters and editorial prompts remain local and pending.
+> **Estado:** configuración, crontab, persistencia JSON, generación RSS y adaptadores Codex/Claude implementados. Pruebas usan agentes falsos; la autenticación y generación real aún requieren verificación local. Los prompts editoriales siguen pendientes.
 
 ## Flujo
 
@@ -27,7 +27,8 @@ Supercronic
   → validación estricta en Go
   → edición JSON persistente
   → feeds RSS 2.0 estáticos
-  → Caddy sirve los XML
+  → servicio HTTP sirve XML estáticos
+  → Caddy externo gestiona dominio y TLS
 ```
 
 Una edición completa equivale a un ítem RSS. Se genera un feed por configuración y `all.xml`. Los fallos no reemplazan publicaciones válidas. El agente trabaja en un directorio temporal; solo Go publica archivos validados.
@@ -59,11 +60,11 @@ cp -r examples/prompts prompts
 | Scheduler | Supercronic con crontab generado desde JSON |
 | Imagen | Debian Trixie slim, compilación multistage |
 | Persistencia | Archivos JSON y XML en bind mounts |
-| Publicación | Caddy existente, sin servidor HTTP propio |
+| Publicación | HTTP de solo lectura + Caddy externo |
 
 ## Inicio rápido
 
-Run `go test ./...`. Build with `docker compose build` or `podman compose build`. Caddy remains external; see [deployment](docs/DEPLOYMENT.md).
+Run `go test ./...`. Build with `docker compose build` or `podman compose build`. Use Compose profile `feeds` to enable the XML server; see [deployment](docs/DEPLOYMENT.md).
 
 ## Documentación
 
@@ -75,6 +76,6 @@ Run `go test ./...`. Build with `docker compose build` or `podman compose build`
 
 ## Infraestructura
 
-Reference runtime: rootless Podman, with Docker Compose compatibility. Caddy remains independent and consumes the published directory through a shared mount or explicit synchronization. No ports or public exposure are configured here.
+Reference runtime: rootless Podman, with Docker Compose compatibility. Caddy remains independent and proxies to the read-only feed service. Port binds to localhost by default; public exposure is not configured here.
 
 ---

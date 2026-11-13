@@ -1,5 +1,8 @@
 {
   "slug": "sample",
+  "title": "Sample Newsletter",
+  "description": "Example feed metadata.",
+  "site_url": "https://example.com/newsletter/",
   "enabled": false,
   "prompt": "prompts/sample.md",
   "schedule": {
