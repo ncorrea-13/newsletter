@@ -57,7 +57,7 @@ Cada JSON representa un newsletter y referencia su prompt. Ejemplo conceptual:
 }
 ```
 
-`config/defaults.json` contiene timezone y defaults comunes, por ejemplo agente, timeout, contexto histórico y retención RSS. `history_context_editions` controla cuántas ediciones recientes recibe el agente; su default es 5 y el máximo 30. Cada newsletter declara solo sus diferencias. La frecuencia vive junto a ese newsletter, no dentro del prompt ni en un crontab editado a mano.
+`config/defaults.json` contiene timezone y defaults comunes, por ejemplo agente, timeout, contexto histórico y retención RSS. `history_context_editions` controla cuántas ediciones recientes recibe el agente; su default es 5 y el máximo 30. Cada newsletter declara solo sus diferencias. La frecuencia vive junto a ese newsletter, no dentro del prompt ni en un crontab editado a mano. Cada newsletter elige `agent` (`codex` o `claude`) y, opcionalmente, `model`; si `model` falta, el CLI usa su modelo por defecto.
 
 Correspondencia 1:1 por slug: `config/newsletters/<slug>.json` y `prompts/<slug>.md`. El validador exige que cada prompt exista y corresponda al slug.
 

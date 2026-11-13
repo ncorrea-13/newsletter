@@ -117,6 +117,55 @@ func TestForNewsletterRejectsUnknownAndUnsupportedAgent(t *testing.T) {
 	}
 }
 
+func TestAdaptersPassConfiguredModel(t *testing.T) {
+	root := t.TempDir()
+	argsPath := filepath.Join(root, "args")
+	t.Setenv("TEST_ARGS", argsPath)
+	t.Setenv("TEST_EDITION", testEdition)
+	codex := filepath.Join(root, "codex")
+	codexScript := `#!/bin/sh
+printf '%s\n' "$@" > "$TEST_ARGS"
+cat > /dev/null
+out=
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --output-last-message) shift; out=$1 ;;
+  esac
+  shift
+done
+printf '%s' "$TEST_EDITION" > "$out"
+`
+	if err := os.WriteFile(codex, []byte(codexScript), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := (Adapter{Name: "codex", Model: "gpt-test-model", CodexPath: codex}).Run(context.Background(), pipeline.Request{Date: "2026-11-12"}); err != nil {
+		t.Fatal(err)
+	}
+	args, err := os.ReadFile(argsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(args), "exec\n--model\ngpt-test-model\n") {
+		t.Fatalf("codex args missing model after exec: %s", args)
+	}
+
+	claude := filepath.Join(root, "claude")
+	claudeScript := "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$TEST_ARGS\"\nprintf '%s' '{\"structured_output\":{\"title\":\"T\",\"stories\":[{\"title\":\"S\"}]}}'\n"
+	if err := os.WriteFile(claude, []byte(claudeScript), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := (Adapter{Name: "claude", Model: "sonnet", ClaudePath: claude}).Run(context.Background(), pipeline.Request{Date: "2026-11-12"}); err != nil {
+		t.Fatal(err)
+	}
+	args, err = os.ReadFile(argsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(args), "--model\nsonnet\n") {
+		t.Fatalf("claude args missing model: %s", args)
+	}
+}
+
 func TestAdapterFailureDoesNotExposeProviderOutput(t *testing.T) {
 	command := filepath.Join(t.TempDir(), "codex")
 	if err := os.WriteFile(command, []byte("#!/bin/sh\nprintf 'sensitive provider output' >&2\nexit 7\n"), 0o700); err != nil {

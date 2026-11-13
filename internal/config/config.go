@@ -16,6 +16,9 @@ import (
 
 var slugPattern = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 
+// modelPattern rejects values that could be read as CLI options (leading '-').
+var modelPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/-]{0,99}$`)
+
 const defaultHistoryContextEditions = 5
 const maxHistoryContextEditions = 30
 const defaultFeedRetentionEditions = 30
@@ -42,6 +45,7 @@ type Newsletter struct {
 	Enabled        *bool    `json:"enabled"`
 	Prompt         string   `json:"prompt"`
 	Agent          string   `json:"agent"`
+	Model          string   `json:"model"`
 	TimeoutMinutes int      `json:"timeout_minutes"`
 	Schedule       Schedule `json:"schedule"`
 	PromptPath     string   `json:"-"`
@@ -194,6 +198,9 @@ func validateNewsletter(newsletter *Newsletter, filename, promptsDir string, def
 	}
 	if err := validateAgent(newsletter.Agent); err != nil {
 		return err
+	}
+	if newsletter.Model != "" && !modelPattern.MatchString(newsletter.Model) {
+		return fmt.Errorf("model must be 1-100 characters: letters, digits, '.', '_', ':', '/', '-', not starting with '-'")
 	}
 	if newsletter.TimeoutMinutes == 0 {
 		newsletter.TimeoutMinutes = defaults.TimeoutMinutes

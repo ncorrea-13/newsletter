@@ -73,6 +73,22 @@ func TestLoadRejectsExcessiveFeedRetention(t *testing.T) {
 	}
 }
 
+func TestLoadAcceptsAndRejectsModelValues(t *testing.T) {
+	body := func(model string) string {
+		return `{"slug":"sample","enabled":true,"prompt":"prompts/sample.md","model":"` + model + `","schedule":{"days":["monday"],"time":"06:00"}}`
+	}
+	root := writeFixture(t, "sample", body("gpt-5.5"), "prompt")
+	if loaded, err := Load(root); err != nil || loaded.Newsletters[0].Model != "gpt-5.5" {
+		t.Fatalf("valid model rejected: %v", err)
+	}
+	for _, model := range []string{"-x", "--sandbox", "bad model", strings.Repeat("a", 101)} {
+		root := writeFixture(t, "sample", body(model), "prompt")
+		if _, err := Load(root); err == nil || !strings.Contains(err.Error(), "model must be") {
+			t.Fatalf("model %q: Load error = %v, want model validation error", model, err)
+		}
+	}
+}
+
 func TestLoadRejectsInvalidFeedSiteURL(t *testing.T) {
 	root := writeFixture(t, "sample", `{"slug":"sample","enabled":true,"prompt":"prompts/sample.md","site_url":"javascript:alert(1)","schedule":{"days":["monday"],"time":"06:00"}}`, "prompt")
 	if _, err := Load(root); err == nil || !strings.Contains(err.Error(), "must be an absolute HTTP(S) URL") {
