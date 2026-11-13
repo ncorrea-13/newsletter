@@ -45,12 +45,30 @@ En producción no se compila. El servicio usa `image:` con la imagen publicada.
 
 ```yaml
 services:
+  egress-proxy:
+    build: docker/squid          # no hay imagen publicada; se construye desde el checkout
+    image: newsletter-egress-proxy:local
+    restart: unless-stopped
+    networks:
+      agent:
+        ipv4_address: 172.28.10.10
+      egress: {}
+
   newsletter-bot:
     image: ghcr.io/<owner>/newsletter-bot:<sha>
     init: true
     pids_limit: 128
     restart: unless-stopped
-    network_mode: slirp4netns    # Podman rootless; en Docker, quitar esta línea
+    depends_on:
+      - egress-proxy
+    environment:
+      HTTP_PROXY: http://172.28.10.10:3128
+      HTTPS_PROXY: http://172.28.10.10:3128
+      http_proxy: http://172.28.10.10:3128
+      https_proxy: http://172.28.10.10:3128
+      NO_PROXY: localhost,127.0.0.1
+    networks:
+      - agent
     volumes:
       - ./config:/config:ro
       - ./prompts:/prompts:ro
@@ -72,7 +90,17 @@ services:
       - "${FEED_BIND_ADDRESS:-127.0.0.1}:${FEED_PORT:-8080}:8080"
     volumes:
       - ./data/public:/data/public:ro
+
+networks:
+  agent:
+    internal: true               # sin ruta a internet ni a la LAN: el bot solo llega al proxy
+    ipam:
+      config:
+        - subnet: 172.28.10.0/24
+  egress: {}
 ```
+
+El bot sale a internet solo por `egress-proxy`. Squid acepta la red `agent`, solo 80 y 443, y deniega destinos privados (`10/8`, `172.16/12`, `192.168/16`, `100.64/10`, loopback, link-local y similares). Los agentes usan `HTTPS_PROXY`, y `WebFetch` pasa por el mismo proxy.
 
 Variables de `.env`:
 

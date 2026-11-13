@@ -1,0 +1,56 @@
+services:
+  # Única salida del bot hacia internet. Vive en las redes "agent" (interna)
+  # y "egress". Se construye desde docker/squid; no hay imagen publicada.
+  egress-proxy:
+    build: docker/squid
+    image: newsletter-egress-proxy:local
+    restart: unless-stopped
+    networks:
+      agent:
+        ipv4_address: 172.28.10.10
+      egress: {}
+
+  newsletter-bot:
+    image: ghcr.io/ncorrea-13/newsletter-bot:latest
+    init: true
+    pids_limit: 128
+    restart: unless-stopped
+    depends_on:
+      - egress-proxy
+    environment:
+      HTTP_PROXY: http://172.28.10.10:3128
+      HTTPS_PROXY: http://172.28.10.10:3128
+      http_proxy: http://172.28.10.10:3128
+      https_proxy: http://172.28.10.10:3128
+      NO_PROXY: localhost,127.0.0.1
+    networks:
+      - agent
+    volumes:
+      - ${NEWSLETTER_DIR}/config:/config:ro
+      - ${NEWSLETTER_DIR}/prompts:/prompts:ro
+      - ${NEWSLETTER_DIR}/data:/data
+      - ${NEWSLETTER_DIR}/auth:/auth
+
+  newsletter-feeds:
+    image: ghcr.io/ncorrea-13/newsletter-bot:latest
+    command: ["serve"]
+    profiles: ["feeds"]
+    init: true
+    pids_limit: 128
+    restart: unless-stopped
+    network_mode: slirp4netns
+    environment:
+      FEED_DIR: /data/public
+      FEED_LISTEN_ADDR: :8080
+    ports:
+      - "${FEED_BIND_ADDRESS:-127.0.0.1}:${FEED_PORT}:8080"
+    volumes:
+      - ${NEWSLETTER_DIR}/data/public:/data/public:ro
+
+networks:
+  agent:
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.28.10.0/24
+  egress: {}

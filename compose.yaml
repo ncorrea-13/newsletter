@@ -1,10 +1,31 @@
 services:
+  # Única salida del bot hacia internet. Vive en las dos redes: "agent" (interna)
+  # para recibir al bot, y "egress" para salir a internet.
+  egress-proxy:
+    build: docker/squid
+    image: newsletter-egress-proxy:local
+    restart: unless-stopped
+    networks:
+      agent:
+        ipv4_address: 172.28.10.10
+      egress: {}
+
   newsletter-bot:
     image: newsletter-bot:local
     build: .
     init: true
     pids_limit: 128
     restart: unless-stopped
+    depends_on:
+      - egress-proxy
+    environment:
+      HTTP_PROXY: http://172.28.10.10:3128
+      HTTPS_PROXY: http://172.28.10.10:3128
+      http_proxy: http://172.28.10.10:3128
+      https_proxy: http://172.28.10.10:3128
+      NO_PROXY: localhost,127.0.0.1
+    networks:
+      - agent
     volumes:
       - ./config:/config:ro
       - ./prompts:/prompts:ro
@@ -25,3 +46,11 @@ services:
       - "${FEED_BIND_ADDRESS:-127.0.0.1}:8080:8080"
     volumes:
       - ./data/public:/data/public:ro
+
+networks:
+  agent:
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.28.10.0/24
+  egress: {}
