@@ -100,7 +100,7 @@ Los feeds son derivados del historial y pueden reconstruirse con `newsletter gen
 
 ## Contrato editorial y confianza
 
-El resultado del agente es entrada no confiable. Go valida JSON estricto, slug, fechas, campos obligatorios y URLs absolutas. El RSS serializa títulos y resúmenes como texto XML escapado; no interpreta HTML.
+El resultado del agente es entrada no confiable. Go valida JSON estricto, slug, fechas, campos obligatorios y URLs absolutas. `content_html` pasa por una lista blanca de etiquetas y atributos (`p`, `h1`–`h3`, `ul`, `li`, `a`, `strong`, `em`, `br`, `img`); cualquier otra etiqueta, esquema distinto de http(s), `<` suelto o comentario rechaza la edición. El RSS escapa ese HTML como texto XML dentro de `<description>`; el lector lo renderiza. Las ediciones anteriores sin `content_html` conservan el resumen plano.
 
 Las páginas externas y el contenido recuperado son datos, no instrucciones. El agente no modifica configuración, prompts, historial ni directorio público. Su salida pasa por validación antes de persistirse.
 
@@ -108,8 +108,8 @@ Codex se ejecuta sin herramientas de shell (`features.shell_tool=false`) y con s
 
 ## RSS
 
-- RSS 2.0 con descripciones en texto XML escapado.
-- Canal con `title`, `description` y `site_url` del newsletter; si faltan, usa el slug y el enlace del ítem más reciente.
+- RSS 2.0 con `<description>` que contiene el HTML sanitizado de la edición, escapado como texto XML.
+- Canal con `title` y `description` del newsletter. El `<link>` del canal sale de `site_url` si está definido; si no, de `feed_base_url` (en `defaults.json`) más `/<slug>.xml`; si tampoco hay base, del enlace del ítem más reciente.
 - Un ítem por edición completa.
 - GUID estable derivado de newsletter y fecha editorial.
 - Orden cronológico descendente.

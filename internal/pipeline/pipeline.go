@@ -29,10 +29,11 @@ type Story struct {
 }
 
 type Edition struct {
-	Slug    string  `json:"slug"`
-	Date    string  `json:"date"`
-	Title   string  `json:"title"`
-	Stories []Story `json:"stories"`
+	Slug        string  `json:"slug"`
+	Date        string  `json:"date"`
+	Title       string  `json:"title"`
+	ContentHTML string  `json:"content_html,omitempty"`
+	Stories     []Story `json:"stories"`
 }
 
 type Request struct {
@@ -164,6 +165,14 @@ func Run(ctx context.Context, configuration config.Configuration, slug, dataDir 
 	if strings.TrimSpace(edition.Title) == "" || len(edition.Stories) == 0 {
 		return fmt.Errorf("edition title and at least one story are required")
 	}
+	if strings.TrimSpace(edition.ContentHTML) == "" {
+		return fmt.Errorf("edition content_html is required")
+	}
+	sanitized, err := sanitizeHTML(edition.ContentHTML)
+	if err != nil {
+		return fmt.Errorf("invalid content_html: %w", err)
+	}
+	edition.ContentHTML = sanitized
 	for i, story := range edition.Stories {
 		normalized, err := normalizeURL(story.URL)
 		if strings.TrimSpace(story.Title) == "" || strings.TrimSpace(story.Source) == "" || err != nil || strings.TrimSpace(story.Summary) == "" {
@@ -426,11 +435,16 @@ func writeFeedAtomic(path string, meta feedMeta, editions []Edition) error {
 		if err != nil {
 			return err
 		}
-		var descriptions []string
-		for _, story := range edition.Stories {
-			descriptions = append(descriptions, story.Source+": "+story.Title+": "+story.Summary)
+		description := edition.ContentHTML
+		if description == "" {
+			// Editions saved before content_html existed keep the plain summary format.
+			var descriptions []string
+			for _, story := range edition.Stories {
+				descriptions = append(descriptions, story.Source+": "+story.Title+": "+story.Summary)
+			}
+			description = strings.Join(descriptions, "\n\n")
 		}
-		items = append(items, item{Title: edition.Title, Link: edition.Stories[0].URL, GUID: guid{Value: meta.GUIDPrefix + ":" + edition.Date}, Description: strings.Join(descriptions, "\n\n"), PubDate: date.UTC().Format(time.RFC1123Z)})
+		items = append(items, item{Title: edition.Title, Link: edition.Stories[0].URL, GUID: guid{Value: meta.GUIDPrefix + ":" + edition.Date}, Description: description, PubDate: date.UTC().Format(time.RFC1123Z)})
 	}
 	link := meta.Link
 	if link == "" && len(items) > 0 {

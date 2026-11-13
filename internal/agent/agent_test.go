@@ -12,7 +12,7 @@ import (
 	"newsletter-bot/internal/pipeline"
 )
 
-const testEdition = `{"title":"Edition","stories":[{"title":"Story","source":"Example","url":"https://example.com/story","published_at":"2026-11-12","summary":"Summary"}]}`
+const testEdition = `{"title":"Edition","content_html":"<p>Cuerpo</p>","stories":[{"title":"Story","source":"Example","url":"https://example.com/story","published_at":"2026-11-12","summary":"Summary"}]}`
 
 func TestCodexAdapterUsesReadOnlyLiveSearchAndStructuredOutput(t *testing.T) {
 	root := t.TempDir()

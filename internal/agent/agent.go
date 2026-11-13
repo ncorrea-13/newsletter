@@ -186,6 +186,7 @@ const editionSchema = `{
   "type": "object",
   "properties": {
     "title": {"type": "string", "minLength": 1},
+    "content_html": {"type": "string", "minLength": 1},
     "stories": {
       "type": "array",
       "minItems": 1,
@@ -203,6 +204,6 @@ const editionSchema = `{
       }
     }
   },
-  "required": ["title", "stories"],
+  "required": ["title", "content_html", "stories"],
   "additionalProperties": false
 }`
