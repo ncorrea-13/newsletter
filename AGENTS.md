@@ -6,13 +6,12 @@ Newsletter Bot migra automatizaciones editoriales a Go, agentes CLI, archivos JS
 
 ## Fuentes de verdad
 
-- `docs/PLAN.md`: alcance y requisitos funcionales.
-- `docs/ARCHITECTURE.md`: límites y flujo del sistema.
-- `docs/DEPLOYMENT.md`: Podman rootless como destino, Docker compatible; Caddy externo.
-- `docs/EDITORIAL-MIGRATION.md`: procedencia y requisitos de prompts.
-- `docs/OPERATIONS.md`: operación prevista, no comandos implementados.
-- La configuración futura será declarativa: un JSON por newsletter en `config/newsletters/` y un prompt Markdown por slug en `prompts/`.
-- La configuración y el código serán fuente de verdad para detalles que aparezcan al implementar.
+- `docs/ARCHITECTURE.md`: componentes, configuración, contrato de salida y límites de confianza.
+- `docs/DEPLOYMENT.md`: imagen, compose, autenticación de agentes y exposición de feeds.
+- `docs/OPERATIONS.md`: runbook de cambios, ejecuciones, importación, diagnóstico y respaldos.
+- `docs/MODELS.md`: catálogo de modelos de Codex y Claude Code.
+- La configuración vive en `config/newsletters/<slug>.json` y el contenido editorial en `prompts/<slug>.md`. Ambos están fuera de Git.
+- La configuración y el código son la fuente de verdad: si un documento contradice el código, corregí el documento.
 
 ## Reglas
 
@@ -30,9 +29,9 @@ Newsletter Bot migra automatizaciones editoriales a Go, agentes CLI, archivos JS
 
 ## Despliegue
 
-Destino de referencia: Podman rootless; mantener compatibilidad Docker Compose. Caddy queda externo y hace proxy al servicio HTTP de feeds por una interfaz privada.
+Destino de referencia: Podman rootless; mantener compatibilidad Docker Compose. Los feeds se publican por una interfaz privada; el proxy o túnel que los exponga vive fuera del repo.
 
-Antes de operar, resolver permisos de volúmenes, montaje entre hosts y si feeds serán internos o públicos. No cambiar exposición de red ni modificar Caddy sin aprobación.
+Antes de operar, resolver permisos de volúmenes, montaje entre hosts y si feeds serán internos o públicos. No cambiar exposición de red, DNS ni proxies sin aprobación explícita.
 
 ## Verificación
 
