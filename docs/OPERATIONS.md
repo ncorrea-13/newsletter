@@ -1,17 +1,17 @@
 # Operación y recuperación
 
-Este documento es el runbook del despliegue. Para la arquitectura, ver [ARCHITECTURE.md](ARCHITECTURE.md). Para instalar, ver [DEPLOYMENT.md](DEPLOYMENT.md).
+Este documento es el runbook del despliegue. La arquitectura está en [ARCHITECTURE.md](ARCHITECTURE.md) y la instalación en [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ## Cambios de configuración
 
 Cada newsletter tiene `config/newsletters/<slug>.json` y `prompts/<slug>.md`, con el mismo slug.
 
-- **Frecuencia:** editar `schedule.days` o `schedule.time` en el JSON.
-- **Comportamiento editorial:** editar el Markdown del mismo slug.
-- **Nuevo newsletter:** crear ambos archivos con el mismo slug.
+- **Frecuencia:** editá `schedule.days` o `schedule.time` en el JSON.
+- **Comportamiento editorial:** editá el Markdown del mismo slug.
+- **Nuevo newsletter:** creá ambos archivos con el mismo slug.
 - **Desactivar:** `"enabled": false`.
 
-Después de cualquier cambio, reiniciar el contenedor. No editar un crontab paralelo ni poner horarios dentro de los prompts.
+Después de cada cambio, reiniciá el contenedor. No edites un crontab aparte ni pongas horarios dentro de los prompts.
 
 Antes de reiniciar, validá la configuración:
 
@@ -37,7 +37,7 @@ podman ps --format '{{.Names}} {{.Status}}' | grep newsletter
 podman logs -f <contenedor-del-scheduler>
 ```
 
-Cada `run` emite eventos JSON de inicio y fin con newsletter, agente, modelo solicitado, resultado y duración. Si `model` no está configurado, el log registra `provider-default`, y eso no confirma qué versión resuelve el proveedor detrás de un alias.
+Cada `run` emite eventos JSON de inicio y fin, con newsletter, agente, modelo solicitado, resultado y duración. Si `model` no está configurado, el log registra `provider-default`. Ese valor no confirma qué versión resuelve el proveedor detrás de un alias.
 
 ## Ejecución manual
 
@@ -45,7 +45,7 @@ Cada `run` emite eventos JSON de inicio y fin con newsletter, agente, modelo sol
 podman-compose -f compose.prod.yaml run --rm newsletter-bot run <slug>
 ```
 
-Usá `--rm` para que el contenedor no quede reiniciándose. Consume uso del proveedor. Si ya existe la edición de la fecha, el comando la rechaza antes de llamar al agente.
+Usá `--rm` para que el contenedor no quede reiniciándose. La ejecución consume uso del proveedor. Si la fecha ya tiene edición, el comando la rechaza antes de llamar al agente.
 
 Los newsletters distintos pueden correr en paralelo, pero no dos veces el mismo slug. Si una corrida programada del mismo slug sigue activa, esperá a que termine.
 
@@ -59,42 +59,42 @@ podman-compose -f compose.prod.yaml run --rm -T \
   import-history /import/<directorio> --dry-run
 ```
 
-Revisá el plan. Después, sin `--dry-run`. Una fecha que ya existe no se sobrescribe. Los feeds se regeneran al final de la importación.
+Revisá el plan y, después, repetí el comando sin `--dry-run`. Una fecha que ya existe no se sobrescribe. Los feeds se regeneran al final de la importación.
 
 ## Feeds
 
-`generate-feeds` reconstruye todos los XML desde el historial, sin llamar a agentes ni modificar JSON:
+`generate-feeds` reconstruye todos los XML desde el historial. No llama a agentes ni modifica los JSON:
 
 ```sh
 podman-compose -f compose.prod.yaml run --rm newsletter-bot generate-feeds
 ```
 
-El servicio de feeds lee `data/public/` en solo lectura. Si cambió `feed_base_url` o `site_url`, reconstruí los feeds para que el `<link>` del canal se actualice.
+El servicio de feeds lee `data/public/` en solo lectura. Si cambiás `feed_base_url` o `site_url`, reconstruí los feeds para que el `<link>` del canal se actualice.
 
 ## Diagnóstico
 
 | Síntoma | Revisar |
 | --- | --- |
-| No corre tarea | Estado del scheduler, crontab, zona horaria y logs del contenedor. |
-| Agente ausente | Binario, arquitectura y PATH de la imagen. |
-| Error de autenticación | Sesión en `auth/`, HOME y permisos. Reautenticar con los comandos de [DEPLOYMENT.md](DEPLOYMENT.md). |
+| El scheduler no ejecuta tareas | Estado del scheduler, crontab, zona horaria y logs del contenedor. |
+| Agente no encontrado | Binario, arquitectura y PATH de la imagen. |
+| Error de autenticación | Sesión en `auth/`, HOME y permisos. Reautenticá con los comandos de [DEPLOYMENT.md](DEPLOYMENT.md). |
 | Cuota o límite | Error del proveedor y plan asociado. No reintentar en bucle. |
-| Timeout | Duración, disponibilidad de fuentes y timeout configurado. No subir el timeout sin evidencia. |
-| `invalid content_html` | El agente devolvió etiquetas o atributos fuera de la lista blanca, o un `<` suelto. La edición no se guarda. Revisar el prompt y el resultado. |
-| `story N has invalid required fields or URL` | Una historia sin título, fuente, URL absoluta o resumen. Revisar el prompt; no relajar la validación. |
+| Timeout | Duración, disponibilidad de las fuentes y timeout configurado. Subir el timeout solo con evidencia. |
+| `invalid content_html` | El agente devolvió etiquetas o atributos fuera de la lista blanca, o un `<` suelto. La edición no se guarda. Revisá el prompt y el resultado. |
+| `story N has invalid required fields or URL` | Una historia sin título, fuente, URL absoluta o resumen. Revisá el prompt. No relajes la validación. |
 | `edition already exists` | La fecha ya tiene edición. Es el comportamiento esperado. |
-| Feed sin ítems | Confirmar que `data/public/` tiene XML y que el volumen del servicio de feeds apunta a `data/public`. |
-| Feed vacío o 404 | Reconstruir con `generate-feeds` y revisar el mount del servicio. |
-| Lock retenido | El lock se libera cuando termina el proceso. Verificar que no haya otra ejecución del mismo slug antes de intervenir. No borrar archivos de lock en uso. |
+| Feed sin ítems | Confirmá que `data/public/` tiene XML y que el volumen del servicio de feeds apunta a `data/public`. |
+| Feed vacío o 404 | Reconstruí con `generate-feeds` y revisá el mount del servicio. |
+| Lock retenido | El lock se libera cuando termina el proceso. Antes de intervenir, verificá que no haya otra ejecución del mismo slug. No borres archivos de lock en uso. |
 
 ## Corrección de una edición
 
-Una edición con la misma fecha no se reemplaza en una ejecución normal. Para corregirla:
+Una ejecución normal no reemplaza una edición con la misma fecha. Para corregirla:
 
-1. Copiar `data/history/<slug>/<fecha>.json` a un lugar fuera de `data/`.
-2. Editar el JSON o borrarlo, según el caso, con `podman unshare` si el ownership lo requiere.
-3. Ejecutar `generate-feeds`.
-4. Validar el XML resultante.
+1. Copiá `data/history/<slug>/<fecha>.json` a un lugar fuera de `data/`.
+2. Editá el JSON o bórralo, según el caso. Usá `podman unshare` si el ownership lo requiere.
+3. Ejecutá `generate-feeds`.
+4. Validá el XML resultante.
 
 Una ejecución fallida no borra ni sobrescribe la edición ni el XML válidos anteriores.
 
@@ -104,13 +104,13 @@ Una ejecución fallida no borra ni sobrescribe la edición ni el XML válidos an
 - **Credenciales:** `auth/`, solo en almacenamiento cifrado y con acceso restringido. Alternativa: reautenticar al restaurar.
 - **Regenerable:** `data/public/`, que sale del historial con `generate-feeds`.
 
-Probá la restauración antes de considerar válido un respaldo: recuperá los datos, verificá permisos del usuario del contenedor, ejecutá `generate-feeds`, validá los XML y comprobá la respuesta del servicio de feeds.
+Probá la restauración antes de dar por válido un respaldo. Recuperá los datos, verificá los permisos del usuario del contenedor, ejecutá `generate-feeds`, validá los XML y comprobá la respuesta del servicio de feeds.
 
 ## Seguridad operativa
 
 - El servicio de feeds sirve solo XML de `data/public/`.
 - JSON, estado y credenciales son privados.
-- El scheduler no publica puertos. El servicio de feeds solo se levanta con el perfil `feeds`.
-- Sin modo privilegiado ni socket de Docker.
+- El scheduler no publica puertos. El servicio de feeds se levanta solo con el perfil `feeds`.
+- No se usa modo privilegiado ni socket de Docker.
 - Las páginas externas son datos no confiables.
 - Cualquier cambio de exposición pública (dominio, DNS, túnel o puertos) requiere aprobación explícita.
