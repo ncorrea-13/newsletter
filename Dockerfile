@@ -53,6 +53,7 @@ RUN apt-get update \
 
 COPY --from=agents /opt/codex-vendor /opt/codex-vendor
 COPY --from=agents /usr/local/bin/codex /usr/local/bin/codex
+COPY --from=agents /opt/codex-vendor/bin/codex-code-mode-host /usr/local/bin/codex-code-mode-host
 COPY --from=agents /usr/local/bin/claude /usr/local/bin/claude
 RUN codex --version | grep -F "$CODEX_VERSION" \
  && claude --version | grep -F "$CLAUDE_CODE_VERSION"
