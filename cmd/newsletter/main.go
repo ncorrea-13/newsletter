@@ -53,6 +53,9 @@ func runWithAgent(args []string, out io.Writer, configDir, dataDir string, injec
 		}
 		return checkAgents(out, runAgentCheck)
 	}
+	if args[0] == "import-history" {
+		return runImportHistory(args[1:], out, configDir, dataDir)
+	}
 	usages := map[string]string{
 		"run":              "newsletter run <slug>",
 		"generate-feeds":   "newsletter generate-feeds",
@@ -147,6 +150,39 @@ func runWithAgent(args []string, out io.Writer, configDir, dataDir string, injec
 		}
 	default:
 		return fmt.Errorf("unknown command %q; available: validate-config, generate-crontab, generate-feeds, run, timezone, status, serve, check-agents", args[0])
+	}
+	return err
+}
+
+func runImportHistory(args []string, out io.Writer, configDir, dataDir string) error {
+	usage := fmt.Errorf("usage: newsletter import-history <export-dir> [--dry-run]")
+	dryRun := false
+	var exportDir string
+	for _, arg := range args {
+		switch {
+		case arg == "--dry-run":
+			dryRun = true
+		case exportDir == "":
+			exportDir = arg
+		default:
+			return usage
+		}
+	}
+	if exportDir == "" {
+		return usage
+	}
+	loaded, err := config.Load(configDir)
+	if err != nil {
+		return err
+	}
+	if dataDir == "" {
+		dataDir = filepath.Join(filepath.Dir(configDir), "data")
+	}
+	lines, err := pipeline.ImportHistory(loaded, exportDir, dataDir, dryRun)
+	for _, line := range lines {
+		if _, writeErr := fmt.Fprintln(out, line); writeErr != nil {
+			return writeErr
+		}
 	}
 	return err
 }
