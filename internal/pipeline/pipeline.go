@@ -58,15 +58,34 @@ type Agent interface {
 }
 
 func Lock(dataDir string) (func(), error) {
+	return lockFile(dataDir, "feeds.lock", true)
+}
+
+func LockFeeds(dataDir string) (func(), error) {
+	return lockFile(dataDir, "feeds.lock", false)
+}
+
+func LockNewsletter(dataDir, slug string) (func(), error) {
+	if slug == "" || filepath.Base(slug) != slug {
+		return nil, fmt.Errorf("invalid newsletter slug %q", slug)
+	}
+	return lockFile(dataDir, "newsletter-"+slug+".lock", true)
+}
+
+func lockFile(dataDir, name string, nonBlocking bool) (func(), error) {
 	lockDir := filepath.Join(dataDir, "state", "locks")
 	if err := os.MkdirAll(lockDir, 0o700); err != nil {
 		return nil, err
 	}
-	lock, err := os.OpenFile(filepath.Join(lockDir, "run.lock"), os.O_WRONLY|os.O_CREATE, 0o600)
+	lock, err := os.OpenFile(filepath.Join(lockDir, name), os.O_WRONLY|os.O_CREATE, 0o600)
 	if err != nil {
 		return nil, fmt.Errorf("open run lock: %w", err)
 	}
-	if err := syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+	operation := syscall.LOCK_EX
+	if nonBlocking {
+		operation |= syscall.LOCK_NB
+	}
+	if err := syscall.Flock(int(lock.Fd()), operation); err != nil {
 		_ = lock.Close()
 		return nil, fmt.Errorf("acquire run lock: %w", err)
 	}
@@ -84,7 +103,7 @@ func Run(ctx context.Context, configuration config.Configuration, slug, dataDir 
 	if newsletter == nil {
 		return fmt.Errorf("unknown newsletter %q", slug)
 	}
-	unlock, err := Lock(dataDir)
+	unlock, err := LockNewsletter(dataDir, newsletter.Slug)
 	if err != nil {
 		return err
 	}
@@ -170,6 +189,11 @@ func Run(ctx context.Context, configuration config.Configuration, slug, dataDir 
 	if err := writeNewAtomic(path, encoded); err != nil {
 		return fmt.Errorf("persist edition: %w", err)
 	}
+	unlockFeeds, err := LockFeeds(dataDir)
+	if err != nil {
+		return fmt.Errorf("acquire feed lock: %w", err)
+	}
+	defer unlockFeeds()
 	if err := GenerateFeeds(configuration.Newsletters, dataDir, configuration.Defaults.FeedRetentionEditions); err != nil {
 		return fmt.Errorf("edition saved at %s; regenerate feeds with newsletter generate-feeds: %w", path, err)
 	}
