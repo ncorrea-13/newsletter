@@ -22,6 +22,7 @@ const maxOutputBytes = 8 << 20
 
 type Adapter struct {
 	Name       string
+	Model      string
 	CodexPath  string
 	ClaudePath string
 }
@@ -34,7 +35,7 @@ func ForNewsletter(newsletters []config.Newsletter, slug string) (pipeline.Agent
 		if newsletter.Agent != "codex" && newsletter.Agent != "claude" {
 			return nil, fmt.Errorf("unsupported agent %q", newsletter.Agent)
 		}
-		return Adapter{Name: newsletter.Agent}, nil
+		return Adapter{Name: newsletter.Agent, Model: newsletter.Model}, nil
 	}
 	return nil, fmt.Errorf("unknown newsletter %q", slug)
 }
@@ -77,7 +78,11 @@ func (a Adapter) runCodex(ctx context.Context, directory, schemaPath, prompt str
 	if binary == "" {
 		binary = "codex"
 	}
-	args := []string{"--search", "--ask-for-approval", "never", "exec", "--ignore-user-config", "--ephemeral", "--skip-git-repo-check", "--sandbox", "read-only", "--disable", "shell_tool", "--output-schema", schemaPath, "--output-last-message", outputPath, "-"}
+	args := []string{"--search", "--ask-for-approval", "never", "exec"}
+	if a.Model != "" {
+		args = append(args, "--model", a.Model)
+	}
+	args = append(args, "--ignore-user-config", "--ephemeral", "--skip-git-repo-check", "--sandbox", "read-only", "--disable", "shell_tool", "--output-schema", schemaPath, "--output-last-message", outputPath, "-")
 	cmd := newCommand(ctx, binary, args, directory)
 	cmd.Stdin = strings.NewReader(prompt)
 	cmd.Stdout = nil
@@ -98,6 +103,9 @@ func (a Adapter) runClaude(ctx context.Context, directory, schemaPath, prompt st
 		return nil, err
 	}
 	args := []string{"--safe-mode", "--restricted", "-p", "--permission-mode", "plan", "--permission-prompts", "none", "--tools", "WebSearch,WebFetch", "--output-format", "json", "--json-schema", string(schema)}
+	if a.Model != "" {
+		args = append(args, "--model", a.Model)
+	}
 	cmd := newCommand(ctx, binary, args, directory)
 	cmd.Stdin = strings.NewReader(prompt)
 	var output limitedBuffer
