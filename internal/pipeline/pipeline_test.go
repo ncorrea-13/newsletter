@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -141,7 +142,7 @@ func TestRunUsesKernelLockAndRecoversStaleLockFile(t *testing.T) {
 	if err := os.MkdirAll(lockDir, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	lockPath := filepath.Join(lockDir, "run.lock")
+	lockPath := filepath.Join(lockDir, "newsletter-sample.lock")
 	if err := os.WriteFile(lockPath, nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -167,6 +168,71 @@ func TestRunUsesKernelLockAndRecoversStaleLockFile(t *testing.T) {
 	}
 	if err := Run(context.Background(), loaded, "sample", dataDir, date, fakeAgent{result: generated}); err != nil {
 		t.Fatalf("run with stale lock file should succeed: %v", err)
+	}
+}
+
+func TestRunAllowsDifferentNewslettersConcurrently(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "config")
+	if err := os.MkdirAll(filepath.Join(configDir, "newsletters"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "prompts"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(configDir, "defaults.json"), []byte(`{"timezone":"Etc/UTC","agent":"codex","timeout_minutes":2}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, slug := range []string{"codex-newsletter", "claude-newsletter"} {
+		contents := `{"slug":"` + slug + `","enabled":true,"prompt":"prompts/` + slug + `.md","schedule":{"days":["monday"],"time":"09:00"}}`
+		if err := os.WriteFile(filepath.Join(configDir, "newsletters", slug+".json"), []byte(contents), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(root, "prompts", slug+".md"), []byte("prompt"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	loaded, err := config.Load(configDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	started := make(chan struct{}, 2)
+	release := make(chan struct{})
+	var releaseOnce sync.Once
+	defer releaseOnce.Do(func() { close(release) })
+	dataDir := filepath.Join(root, "data")
+	date := time.Date(2026, 11, 11, 10, 0, 0, 0, time.UTC)
+	errors := make(chan error, 2)
+	for _, slug := range []string{"codex-newsletter", "claude-newsletter"} {
+		result := []byte(`{"title":"` + slug + `","stories":[{"title":"` + slug + ` story","source":"Example","url":"https://example.com/` + slug + `","published_at":"2026-11-11","summary":"Summary"}]}`)
+		go func(slug string) {
+			errors <- Run(context.Background(), loaded, slug, dataDir, date, fakeAgent{result: result, check: func(Request) {
+				started <- struct{}{}
+				<-release
+			}})
+		}(slug)
+	}
+	for i := 0; i < 2; i++ {
+		select {
+		case <-started:
+		case <-time.After(time.Second):
+			t.Fatal("different newsletter runs did not reach their agents concurrently")
+		}
+	}
+	releaseOnce.Do(func() { close(release) })
+	for i := 0; i < 2; i++ {
+		if err := <-errors; err != nil {
+			t.Errorf("concurrent run failed: %v", err)
+		}
+	}
+	allFeed, err := os.ReadFile(filepath.Join(dataDir, "public", "all.xml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, slug := range []string{"codex-newsletter", "claude-newsletter"} {
+		if !strings.Contains(string(allFeed), slug+" story") {
+			t.Errorf("combined feed missing concurrent edition %q: %s", slug, allFeed)
+		}
 	}
 }
 

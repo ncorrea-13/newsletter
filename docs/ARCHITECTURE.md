@@ -12,7 +12,7 @@ config/newsletters/*.json + prompts/<slug>.md
       └── Supercronic
           └── newsletter run <slug>
               ├── config + prompt editorial
-              ├── historial reciente y lock global
+              ├── historial reciente y lock por newsletter
               ├── adaptador Codex o Claude
               ├── validación del contrato JSON
               ├── historial por fecha editorial
@@ -72,7 +72,7 @@ Montar `config/` y `prompts/` desde el host como archivos editables y read-only 
 ## Ejecución de una edición
 
 1. Validar slug y configuración.
-2. Adquirir lock global para serializar uso de agentes.
+2. Adquirir lock por newsletter para impedir duplicados del mismo slug.
 3. Calcular timestamp UTC y fecha editorial local.
 4. Leer prompt y contexto compacto de ediciones recientes.
 5. Ejecutar el proveedor mediante proceso separado y con timeout.
@@ -123,7 +123,7 @@ Codex se ejecuta sin herramientas de shell (`features.shell_tool=false`) y con s
 
 ## Concurrencia y fallos
 
-El scheduler puede disparar tareas próximas, pero un lock global permite un solo agente a la vez. `run` y `generate-feeds` comparten ese lock. El lock usa `flock` del kernel: se libera al terminar el proceso, incluso tras una caída, y un archivo `run.lock` remanente no bloquea ejecuciones nuevas.
+El scheduler puede ejecutar en paralelo newsletters distintos; cada slug tiene su propio lock y una corrida duplicada del mismo slug falla. La regeneración de feeds usa un lock global bloqueante para serializar escrituras de RSS; `generate-feeds` usa el mismo lock sin espera. Los locks usan `flock` del kernel y se liberan al terminar el proceso, incluso tras una caída.
 
 Los reintentos son limitados y aplican solo a errores transitorios. Autenticación inválida, límites de uso y errores editoriales no se reintentan indefinidamente. Al reiniciar, no se ejecutan en lote tareas perdidas.
 
