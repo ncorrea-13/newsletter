@@ -2,17 +2,24 @@
 
 ## Regla de migración
 
-Los prompts originales pueden no estar disponibles. La migración editorial no puede darse por terminada hasta obtenerlos. No inventar ni resumir instrucciones ausentes.
+Los prompts originales están disponibles localmente como `.txt` para los ocho newsletters. La migración editorial no se considera completa hasta probar cada flujo extremo a extremo. No inventar ni resumir instrucciones ausentes.
 
-| Configuración | Fuente | Estado del prompt |
+| Configuración | Fuente original local | Estado |
 | --- | --- | --- |
-| Each configured newsletter | Original editorial prompt | Migration pending |
+| `animanga` | `prompts/ANIMANGA.txt` | Adaptado a JSON; no probado extremo a extremo |
+| `cosmere` | `prompts/COSMERE.txt` | Adaptado a JSON; sección de ideas originales incompatible con campos obligatorios del esquema |
+| `economia` | `prompts/ECONOMIA.txt` | Adaptado a JSON; gráficos/KPI omitidos por límite del esquema |
+| `eventos-it` | `prompts/EVENTOS.txt` | Adaptado a JSON; historial no persiste estado detallado de eventos |
+| `policiales` | `prompts/POLICIALES.txt` | Adaptado a JSON; trivia e imágenes omitidas por límite del esquema |
+| `videojuegos` | `prompts/GAMES.txt` | Adaptado a JSON; trivia e imágenes omitidas por límite del esquema |
+| `tech` | `prompts/TECH.txt` | Adaptado previamente a JSON |
+| `linux` | `prompts/FOSS.txt` | Adaptado previamente a JSON |
 
 Cada newsletter termina en su propio `prompts/<slug>.md`, incluso si varios prompts originales salen de una misma automatización. Horarios y opciones operativas viven en `config/newsletters/<slug>.json`, no en el prompt. Ambos archivos comparten slug. Así se puede cambiar agenda sin tocar instrucciones editoriales.
 
 ## Procedimiento por newsletter
 
-1. Obtener exportación o copia íntegra del prompt y conservarla como referencia de auditoría.
+1. Obtener exportación o copia íntegra del prompt y conservarla como referencia de auditoría. Los originales locales actuales usan `.txt` y se excluyen de Git.
 2. Identificar fuentes prioritarias, ventana temporal, selección, exclusiones, deduplicación, formato y requisitos especiales.
 3. Eliminar pasos de correo y reemplazar herramientas no disponibles solo tras validar alternativa.
 4. Adaptar la salida al esquema JSON versionado sin alterar los criterios editoriales.
