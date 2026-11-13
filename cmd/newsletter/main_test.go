@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -77,7 +78,7 @@ func TestRunCommandPersistsFakeEditionAndPublishesFeeds(t *testing.T) {
 	}
 	files := map[string]string{
 		filepath.Join(configDir, "defaults.json"):              `{"timezone":"Etc/UTC","agent":"codex","timeout_minutes":30}`,
-		filepath.Join(configDir, "newsletters", "sample.json"): `{"slug":"sample","enabled":true,"prompt":"prompts/sample.md","schedule":{"days":["monday"],"time":"09:00"}}`,
+		filepath.Join(configDir, "newsletters", "sample.json"): `{"slug":"sample","enabled":true,"prompt":"prompts/sample.md","model":"gpt-6-luna","schedule":{"days":["monday"],"time":"09:00"}}`,
 		filepath.Join(root, "prompts", "sample.md"):            "test prompt",
 	}
 	for path, contents := range files {
@@ -87,8 +88,17 @@ func TestRunCommandPersistsFakeEditionAndPublishesFeeds(t *testing.T) {
 	}
 	dataDir := filepath.Join(root, "data")
 	var output bytes.Buffer
+	var logs bytes.Buffer
+	previousLogger := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&logs, nil)))
+	t.Cleanup(func() { slog.SetDefault(previousLogger) })
 	if err := runWithAgent([]string{"run", "sample"}, &output, configDir, dataDir, cliFakeAgent{t}); err != nil {
 		t.Fatal(err)
+	}
+	for _, expected := range []string{`"event":"newsletter_run_started"`, `"slug":"sample"`, `"agent":"codex"`, `"model_requested":"gpt-6-luna"`, `"event":"newsletter_run_finished"`, `"status":"success"`, `"duration_ms":`} {
+		if !strings.Contains(logs.String(), expected) {
+			t.Errorf("container logs missing %q: %s", expected, logs.String())
+		}
 	}
 	if got, want := output.String(), "edition saved; feeds regenerated: sample\n"; got != want {
 		t.Fatalf("output = %q, want %q", got, want)

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/exec"
@@ -21,6 +22,7 @@ import (
 )
 
 func main() {
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, nil)))
 	configDir := os.Getenv("NEWSLETTER_CONFIG_DIR")
 	if configDir == "" {
 		configDir = "config"
@@ -72,6 +74,17 @@ func runWithAgent(args []string, out io.Writer, configDir, dataDir string, injec
 	}
 	switch args[0] {
 	case "run":
+		var selected config.Newsletter
+		for _, newsletter := range loaded.Newsletters {
+			if newsletter.Slug == args[1] {
+				selected = newsletter
+				break
+			}
+		}
+		modelRequested := selected.Model
+		if modelRequested == "" {
+			modelRequested = "provider-default"
+		}
 		runner := injectedAgent
 		if runner == nil {
 			runner, err = agent.ForNewsletter(loaded.Newsletters, args[1])
@@ -82,9 +95,16 @@ func runWithAgent(args []string, out io.Writer, configDir, dataDir string, injec
 		if dataDir == "" {
 			dataDir = filepath.Join(filepath.Dir(configDir), "data")
 		}
+		started := time.Now()
+		slog.Info("newsletter run started", "event", "newsletter_run_started", "slug", selected.Slug, "agent", selected.Agent, "model_requested", modelRequested)
 		ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer cancel()
 		err = pipeline.Run(ctx, loaded, args[1], dataDir, time.Now(), runner)
+		status := "success"
+		if err != nil {
+			status = "error"
+		}
+		slog.Info("newsletter run finished", "event", "newsletter_run_finished", "slug", selected.Slug, "agent", selected.Agent, "model_requested", modelRequested, "status", status, "duration_ms", time.Since(started).Milliseconds())
 		if err == nil {
 			_, err = fmt.Fprintf(out, "edition saved; feeds regenerated: %s\n", args[1])
 		}

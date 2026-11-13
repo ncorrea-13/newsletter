@@ -20,7 +20,7 @@ Al reiniciar, no ejecutar automáticamente todos los trabajos perdidos. Recupera
 
 `newsletter status` muestra por newsletter si está habilitado, agente, schedule y fecha de la última edición. No imprime títulos, resúmenes, prompts ni credenciales.
 
-El proceso principal previsto es Supercronic; logs estructurados van a stdout/stderr. Docker o el runtime elegido administra retención de logs.
+El proceso principal previsto es Supercronic; logs estructurados van a stdout/stderr. Docker o el runtime elegido administra retención de logs. Cada `run` emite eventos JSON de inicio y fin con newsletter, agente, `model_requested`, resultado y duración. Si `model` no está configurado, registra `provider-default`; el log no puede confirmar qué versión resuelve el proveedor detrás de un alias.
 
 Registrar inicio/fin, slug, agente, fecha editorial, duración, resultado, número de historias/duplicados y errores resumidos. No guardar secretos ni razonamiento interno.
 
