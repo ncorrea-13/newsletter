@@ -8,6 +8,7 @@
 [![Go](https://img.shields.io/badge/Go-1.27-00ADD8?logo=go&logoColor=white)](https://go.dev)
 [![RSS](https://img.shields.io/badge/RSS-2.0-FFA500?logo=rss&logoColor=white)](https://www.rssboard.org/rss-specification)
 [![Docker](https://img.shields.io/badge/Docker-GHCR-2496ED?logo=docker&logoColor=white)](https://github.com/ncorrea-13/newsletter/pkgs/container/newsletter-bot)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 </div>
 
@@ -85,3 +86,7 @@ Cada slug tiene un JSON y un prompt con el mismo nombre. Cambiar horarios o prom
 - [Operación](docs/OPERATIONS.md): cambios de configuración, ejecuciones manuales, importación, diagnóstico y respaldos.
 - [Modelos](docs/MODELS.md): catálogo de modelos de Codex y Claude Code.
 - [Instrucciones para agentes](AGENTS.md): reglas de trabajo sobre este repo.
+
+## Licencia
+
+Distribuido bajo la licencia MIT. Ver [LICENSE](LICENSE).
