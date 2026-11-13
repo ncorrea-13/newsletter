@@ -64,7 +64,7 @@ func (agent cliFakeAgent) Run(_ context.Context, request pipeline.Request) ([]by
 	if request.Prompt != "test prompt" || request.Date == "" {
 		agent.t.Fatalf("agent request = %+v", request)
 	}
-	return []byte(`{"title":"Test edition","stories":[{"title":"Test story","source":"Example","url":"https://example.com/story","published_at":"2026-11-11","summary":"Test summary"}]}`), nil
+	return []byte(`{"title":"Test edition","content_html":"<p>Cuerpo</p>","stories":[{"title":"Test story","source":"Example","url":"https://example.com/story","published_at":"2026-11-11","summary":"Test summary"}]}`), nil
 }
 
 func TestRunCommandPersistsFakeEditionAndPublishesFeeds(t *testing.T) {
@@ -204,7 +204,7 @@ func TestRunStatusReportsConfigAndLatestEditionWithoutContent(t *testing.T) {
 	if err := os.MkdirAll(history, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	edition := `{"slug":"sample","date":"2026-11-11","title":"Private title","stories":[{"title":"Private story","source":"Example","url":"https://example.com/story","published_at":"2026-11-11","summary":"Private summary"}]}`
+	edition := `{"slug":"sample","date":"2026-11-11","title":"Private title","content_html":"<p>Cuerpo</p>","stories":[{"title":"Private story","source":"Example","url":"https://example.com/story","published_at":"2026-11-11","summary":"Private summary"}]}`
 	if err := os.WriteFile(filepath.Join(history, "2026-11-11.json"), []byte(edition), 0o600); err != nil {
 		t.Fatal(err)
 	}

@@ -60,7 +60,7 @@ func TestRunPersistsEditionAndRegeneratesRSS(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(historyDir, "2026-11-10.json"), previousJSON, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	generated := []byte(`{"title":"Weekly","stories":[{"title":"Story","source":"Example","url":"https://example.com/story","published_at":"2026-11-11","summary":"A useful update."}]}`)
+	generated := []byte(`{"title":"Weekly","content_html":"<p>Story</p>","stories":[{"title":"Story","source":"Example","url":"https://example.com/story","published_at":"2026-11-11","summary":"A useful update."}]}`)
 	dataDir := filepath.Join(root, "data")
 	date := time.Date(2026, 11, 11, 10, 0, 0, 0, time.UTC)
 	if err := Run(context.Background(), loaded, "sample", dataDir, date, fakeAgent{result: generated, check: func(request Request) {
@@ -105,7 +105,7 @@ func TestRunPersistsEditionAndRegeneratesRSS(t *testing.T) {
 	if err == nil || calls != 0 {
 		t.Fatalf("duplicate run error = %v, agent calls = %d; want early rejection", err, calls)
 	}
-	duplicate := []byte(`{"title":"Next","stories":[{"title":"Old story again","source":"Example","url":"https://EXAMPLE.com:443/old#source","published_at":"2026-11-10","summary":"Repeating the same story."}]}`)
+	duplicate := []byte(`{"title":"Next","content_html":"<p>Cuerpo</p>","stories":[{"title":"Old story again","source":"Example","url":"https://EXAMPLE.com:443/old#source","published_at":"2026-11-10","summary":"Repeating the same story."}]}`)
 	err = Run(context.Background(), loaded, "sample", dataDir, date.AddDate(0, 0, 1), fakeAgent{result: duplicate})
 	if err == nil || !strings.Contains(err.Error(), "duplicate story URL") {
 		t.Fatalf("repeated story URL error = %v, want duplicate URL rejection", err)
@@ -153,7 +153,7 @@ func TestRunUsesKernelLockAndRecoversStaleLockFile(t *testing.T) {
 	if err := syscall.Flock(int(held.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
 		t.Fatal(err)
 	}
-	generated := []byte(`{"title":"Weekly","stories":[{"title":"Story","source":"Example","url":"https://example.com/story","published_at":"2026-11-11","summary":"Summary"}]}`)
+	generated := []byte(`{"title":"Weekly","content_html":"<p>Cuerpo</p>","stories":[{"title":"Story","source":"Example","url":"https://example.com/story","published_at":"2026-11-11","summary":"Summary"}]}`)
 	date := time.Date(2026, 11, 11, 10, 0, 0, 0, time.UTC)
 	calls := 0
 	err = Run(context.Background(), loaded, "sample", dataDir, date, fakeAgent{result: generated, check: func(Request) { calls++ }})
@@ -204,7 +204,7 @@ func TestRunAllowsDifferentNewslettersConcurrently(t *testing.T) {
 	date := time.Date(2026, 11, 11, 10, 0, 0, 0, time.UTC)
 	errors := make(chan error, 2)
 	for _, slug := range []string{"codex-newsletter", "claude-newsletter"} {
-		result := []byte(`{"title":"` + slug + `","stories":[{"title":"` + slug + ` story","source":"Example","url":"https://example.com/` + slug + `","published_at":"2026-11-11","summary":"Summary"}]}`)
+		result := []byte(`{"title":"` + slug + `","content_html":"<p>` + slug + ` story</p>","stories":[{"title":"` + slug + ` story","source":"Example","url":"https://example.com/` + slug + `","published_at":"2026-11-11","summary":"Summary"}]}`)
 		go func(slug string) {
 			errors <- Run(context.Background(), loaded, slug, dataDir, date, fakeAgent{result: result, check: func(Request) {
 				started <- struct{}{}
@@ -390,7 +390,7 @@ func TestRunTruncatesHistoryContextToConfiguredLimit(t *testing.T) {
 	for _, date := range []string{"2026-11-08", "2026-11-09", "2026-11-10"} {
 		writeEditionFile(t, root, "sample", date, "Edition "+date)
 	}
-	generated := []byte(`{"title":"Weekly","stories":[{"title":"Story","source":"Example","url":"https://example.com/story","published_at":"2026-11-12","summary":"Summary"}]}`)
+	generated := []byte(`{"title":"Weekly","content_html":"<p>Cuerpo</p>","stories":[{"title":"Story","source":"Example","url":"https://example.com/story","published_at":"2026-11-12","summary":"Summary"}]}`)
 	var received Request
 	err := Run(context.Background(), loaded, "sample", filepath.Join(root, "data"), time.Date(2026, 11, 12, 10, 0, 0, 0, time.UTC), fakeAgent{result: generated, check: func(request Request) { received = request }})
 	if err != nil {
