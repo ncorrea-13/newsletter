@@ -109,7 +109,7 @@ Codex se ejecuta sin herramientas de shell (`features.shell_tool=false`) y con s
 ## RSS
 
 - RSS 2.0 con `<description>` que contiene el HTML sanitizado de la edición, escapado como texto XML.
-- Canal con `title`, `description` y `site_url` del newsletter; si faltan, usa el slug y el enlace del ítem más reciente.
+- Canal con `title` y `description` del newsletter. El `<link>` del canal sale de `site_url` si está definido; si no, de `feed_base_url` (en `defaults.json`) más `/<slug>.xml`; si tampoco hay base, del enlace del ítem más reciente.
 - Un ítem por edición completa.
 - GUID estable derivado de newsletter y fecha editorial.
 - Orden cronológico descendente.

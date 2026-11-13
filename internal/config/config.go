@@ -30,6 +30,9 @@ type Defaults struct {
 	TimeoutMinutes         int    `json:"timeout_minutes"`
 	HistoryContextEditions int    `json:"history_context_editions"`
 	FeedRetentionEditions  int    `json:"feed_retention_editions"`
+	// FeedBaseURL is the public base of the feeds (for example https://feeds.example.com).
+	// When set, each newsletter without site_url links its channel to <base>/<slug>.xml.
+	FeedBaseURL string `json:"feed_base_url"`
 }
 
 type Schedule struct {
@@ -71,6 +74,13 @@ func Load(configDir string) (Configuration, error) {
 	if err := validateDefaults(config.Defaults); err != nil {
 		return config, err
 	}
+	if base := strings.TrimRight(config.Defaults.FeedBaseURL, "/"); base != "" {
+		u, err := url.Parse(base)
+		if err != nil || !u.IsAbs() || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
+			return config, fmt.Errorf("invalid feed_base_url %q: must be absolute http(s)", base)
+		}
+		config.Defaults.FeedBaseURL = base
+	}
 	if _, err := time.LoadLocation(config.Defaults.Timezone); err != nil {
 		return config, fmt.Errorf("invalid timezone %q: %w", config.Defaults.Timezone, err)
 	}
@@ -92,6 +102,9 @@ func Load(configDir string) (Configuration, error) {
 		}
 		if err := validateNewsletter(&newsletter, entry.Name(), promptsDir, config.Defaults); err != nil {
 			return config, fmt.Errorf("validate %s: %w", entry.Name(), err)
+		}
+		if newsletter.SiteURL == "" && config.Defaults.FeedBaseURL != "" {
+			newsletter.SiteURL = config.Defaults.FeedBaseURL + "/" + newsletter.Slug + ".xml"
 		}
 		configuredSlugs[newsletter.Slug] = true
 		config.Newsletters = append(config.Newsletters, newsletter)
