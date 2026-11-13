@@ -1,16 +1,29 @@
+x-hardened: &hardened
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+
 services:
   # Única salida del bot hacia internet. Vive en las redes "agent" (interna)
   # y "egress". Se construye desde docker/squid; no hay imagen publicada.
   egress-proxy:
+    <<: *hardened
     build: docker/squid
     image: newsletter-egress-proxy:local
     restart: unless-stopped
+    cap_add: [CHOWN, DAC_OVERRIDE, SETUID, SETGID]
+    tmpfs:
+      - /run
+      - /var/log/squid
+      - /var/spool/squid
+      - /tmp
     networks:
       agent:
         ipv4_address: 172.28.10.10
       egress: {}
 
   newsletter-bot:
+    <<: *hardened
     image: ghcr.io/ncorrea-13/newsletter-bot:latest
     init: true
     pids_limit: 128
@@ -25,6 +38,8 @@ services:
       NO_PROXY: localhost,127.0.0.1
     networks:
       - agent
+    tmpfs:
+      - /tmp
     volumes:
       - ${NEWSLETTER_DIR}/config:/config:ro
       - ${NEWSLETTER_DIR}/prompts:/prompts:ro
@@ -32,6 +47,7 @@ services:
       - ${NEWSLETTER_DIR}/auth:/auth
 
   newsletter-feeds:
+    <<: *hardened
     image: ghcr.io/ncorrea-13/newsletter-bot:latest
     command: ["serve"]
     profiles: ["feeds"]

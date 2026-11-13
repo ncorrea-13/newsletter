@@ -9,6 +9,28 @@ COPY cmd ./cmd
 COPY internal ./internal
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags='-s -w' -o /out/newsletter ./cmd/newsletter
 
+# Los CLIs se instalan por npm con versiones exactas y lockfile de integridad.
+# --ignore-scripts evita ejecutar postinstall; los binarios nativos se copian
+# a mano desde los paquetes de plataforma.
+FROM --platform=$BUILDPLATFORM node:22-trixie-slim AS agents
+
+ARG TARGETARCH
+ARG CODEX_VERSION=0.167.0
+ARG CLAUDE_CODE_VERSION=2.1.319
+
+RUN case "$TARGETARCH" in \
+      amd64) npm_cpu=x64; codex_triple=x86_64-unknown-linux-musl ;; \
+      arm64) npm_cpu=arm64; codex_triple=aarch64-unknown-linux-musl ;; \
+      *) echo "unsupported target architecture: $TARGETARCH" >&2; exit 1 ;; \
+    esac \
+ && npm install -g --ignore-scripts --no-audit --no-fund --os=linux --cpu="$npm_cpu" \
+      "@openai/codex@${CODEX_VERSION}" "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
+ && g="$(npm root -g)" \
+ && cp -r "$g/@openai/codex/node_modules/@openai/codex-linux-$npm_cpu/vendor/$codex_triple" /opt/codex-vendor \
+ && rm -f /usr/local/bin/codex /usr/local/bin/claude \
+ && install -m 0755 "$g/@anthropic-ai/claude-code/node_modules/@anthropic-ai/claude-code-linux-$npm_cpu/claude" /usr/local/bin/claude \
+ && ln -s /opt/codex-vendor/bin/codex /usr/local/bin/codex
+
 FROM debian:trixie-slim
 
 ARG TARGETARCH
@@ -29,17 +51,10 @@ RUN apt-get update \
  && chmod 0755 /usr/local/bin/supercronic \
  && useradd --system --uid 10001 --create-home --home-dir /home/newsletter newsletter
 
-RUN curl -fsSL https://chatgpt.com/codex/install.sh \
-    | CODEX_RELEASE="$CODEX_VERSION" \
-      CODEX_NON_INTERACTIVE=1 \
-      CODEX_INSTALL_DIR=/usr/local/bin \
-      CODEX_HOME=/opt/codex \
-      sh \
- && claude_home="$(mktemp -d)" \
- && HOME="$claude_home" bash -c 'curl -fsSL https://claude.ai/install.sh | bash -s "$1"' _ "$CLAUDE_CODE_VERSION" \
- && install -m 0755 "$claude_home/.local/share/claude/versions/$CLAUDE_CODE_VERSION" /usr/local/bin/claude \
- && rm -rf "$claude_home" \
- && codex --version | grep -F "$CODEX_VERSION" \
+COPY --from=agents /opt/codex-vendor /opt/codex-vendor
+COPY --from=agents /usr/local/bin/codex /usr/local/bin/codex
+COPY --from=agents /usr/local/bin/claude /usr/local/bin/claude
+RUN codex --version | grep -F "$CODEX_VERSION" \
  && claude --version | grep -F "$CLAUDE_CODE_VERSION"
 
 COPY --from=build /out/newsletter /usr/local/bin/newsletter

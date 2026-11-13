@@ -1,16 +1,29 @@
+x-hardened: &hardened
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+
 services:
-  # Única salida del bot hacia internet. Vive en las dos redes: "agent" (interna)
+  # Única salida del bot hacia internet. Vive en las redes "agent" (interna)
   # para recibir al bot, y "egress" para salir a internet.
   egress-proxy:
+    <<: *hardened
     build: docker/squid
     image: newsletter-egress-proxy:local
     restart: unless-stopped
+    cap_add: [CHOWN, DAC_OVERRIDE, SETUID, SETGID]
+    tmpfs:
+      - /run
+      - /var/log/squid
+      - /var/spool/squid
+      - /tmp
     networks:
       agent:
         ipv4_address: 172.28.10.10
       egress: {}
 
   newsletter-bot:
+    <<: *hardened
     image: newsletter-bot:local
     build: .
     init: true
@@ -26,6 +39,8 @@ services:
       NO_PROXY: localhost,127.0.0.1
     networks:
       - agent
+    tmpfs:
+      - /tmp
     volumes:
       - ./config:/config:ro
       - ./prompts:/prompts:ro
@@ -33,6 +48,7 @@ services:
       - ${NEWSLETTER_AUTH_DIR:-./auth}:/auth
 
   newsletter-feeds:
+    <<: *hardened
     image: newsletter-bot:local
     command: ["serve"]
     profiles: ["feeds"]
