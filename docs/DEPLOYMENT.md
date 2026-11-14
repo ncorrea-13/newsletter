@@ -6,7 +6,12 @@ Podman rootless es el destino de referencia. La imagen también funciona con Doc
 
 ## Imagen
 
-El workflow `image` publica en GHCR la imagen de cada push a `main`, para `linux/amd64` y `linux/arm64`, con los tags `latest` y `<sha>`. En despliegues conviene fijar el `<sha>` y no `latest`. Así el rollback es un cambio de tag.
+El workflow `image` publica en GHCR, en cada push a `main`, dos imágenes para `linux/amd64` y `linux/arm64`, con los tags `latest` y `<sha>`:
+
+- `ghcr.io/<owner>/newsletter-bot`, desde el `Dockerfile` de la raíz.
+- `ghcr.io/<owner>/newsletter-egress-proxy`, desde `docker/squid`.
+
+En despliegues conviene fijar el `<sha>` y no `latest`, en ambas imágenes. Así el rollback es un cambio de tag.
 
 La imagen trae el binario `newsletter`, Codex CLI, Claude Code y Supercronic. Las versiones están fijadas en el `Dockerfile`. El contenedor corre como usuario no root (UID/GID `10001`).
 
@@ -46,8 +51,7 @@ En producción no se compila. El servicio usa `image:` con la imagen publicada.
 ```yaml
 services:
   egress-proxy:
-    build: docker/squid          # no hay imagen publicada; se construye desde el checkout
-    image: newsletter-egress-proxy:local
+    image: ghcr.io/<owner>/newsletter-egress-proxy:<sha>
     restart: unless-stopped
     networks:
       agent:
