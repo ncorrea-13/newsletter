@@ -103,7 +103,7 @@ El agente devuelve un único objeto JSON, sin texto alrededor:
 
 - `title`, `content_html` y `stories` son obligatorios. El esquema está en `internal/agent/agent.go`.
 - `stories` alimenta la deduplicación: ninguna URL puede repetirse dentro de la edición ni respecto del contexto reciente.
-- `content_html` pasa por una lista blanca de etiquetas (`p`, `h1` a `h3`, `ul`, `li`, `a`, `strong`, `em`, `br`, `img`) y atributos (`href`, `src`, `alt`, `width`). Cualquier otra etiqueta, un esquema distinto de `http(s)`, un `<` suelto o un comentario rechaza la edición.
+- `content_html` pasa por una lista blanca de etiquetas (`p`, `h1` a `h3`, `ul`, `li`, `a`, `strong`, `em`, `br`, `img`, `table`, `thead`, `tbody`, `tr`, `th`, `td`) y atributos (`href`, `src`, `alt`, `width`). Cualquier otra etiqueta, un esquema distinto de `http(s)`, un `<` suelto o un comentario rechaza la edición.
 - Las ediciones guardadas antes de `content_html` conservan su resumen plano en el feed.
 
 ## Persistencia

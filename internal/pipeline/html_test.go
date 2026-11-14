@@ -19,6 +19,17 @@ func TestSanitizeHTMLKeepsAllowlistedMarkup(t *testing.T) {
 	}
 }
 
+func TestSanitizeHTMLKeepsTables(t *testing.T) {
+	input := `<table><thead><tr><th>Indicador</th><th>Valor</th></tr></thead><tbody><tr><td>IPC</td><td>2,1 % (INDEC)</td></tr></tbody></table>`
+	got, err := sanitizeHTML(input)
+	if err != nil {
+		t.Fatalf("sanitizeHTML() error = %v", err)
+	}
+	if got != input {
+		t.Fatalf("sanitizeHTML() = %q, want unchanged %q", got, input)
+	}
+}
+
 func TestSanitizeHTMLDropsUnknownAttributes(t *testing.T) {
 	got, err := sanitizeHTML(`<a href="https://example.com/x" onclick="steal()" style="color:red">x</a>`)
 	if err != nil {

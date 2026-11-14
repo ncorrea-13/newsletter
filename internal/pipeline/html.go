@@ -35,6 +35,12 @@ var allowedHTMLTags = map[string]htmlTagRule{
 	"br":     {void: true},
 	"a":      {attrs: []string{"href"}},
 	"img":    {attrs: []string{"src", "alt", "width"}, void: true},
+	"table":  {},
+	"thead":  {},
+	"tbody":  {},
+	"tr":     {},
+	"th":     {},
+	"td":     {},
 }
 
 // sanitizeHTML returns the allowlisted HTML with attributes rebuilt, or an error.
