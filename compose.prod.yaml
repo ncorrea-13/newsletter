@@ -5,11 +5,10 @@ x-hardened: &hardened
 
 services:
   # Única salida del bot hacia internet. Vive en las redes "agent" (interna)
-  # y "egress". Se construye desde docker/squid; no hay imagen publicada.
+  # y "egress". Imagen publicada por el workflow "image" desde docker/squid.
   egress-proxy:
     <<: *hardened
-    build: docker/squid
-    image: newsletter-egress-proxy:local
+    image: ghcr.io/ncorrea-13/newsletter-egress-proxy:latest
     restart: unless-stopped
     cap_add: [CHOWN, DAC_OVERRIDE, SETUID, SETGID]
     tmpfs:
