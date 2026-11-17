@@ -198,7 +198,7 @@ const editionSchema = `{
         "properties": {
           "title": {"type": "string", "minLength": 1},
           "source": {"type": "string", "minLength": 1},
-          "url": {"type": "string", "format": "uri"},
+          "url": {"type": "string"},
           "published_at": {"type": "string", "format": "date"},
           "summary": {"type": "string", "minLength": 1}
         },
