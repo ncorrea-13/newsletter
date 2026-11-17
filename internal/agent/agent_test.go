@@ -21,6 +21,7 @@ func TestCodexAdapterUsesReadOnlyLiveSearchAndStructuredOutput(t *testing.T) {
 	root := t.TempDir()
 	argsPath := filepath.Join(root, "args")
 	inputPath := filepath.Join(root, "input")
+	schemaPath := filepath.Join(root, "schema")
 	command := filepath.Join(root, "codex")
 	script := `#!/bin/sh
 printf '%s\n' "$@" > "$TEST_ARGS"
@@ -35,6 +36,7 @@ while [ "$#" -gt 0 ]; do
   shift
 done
 test -s "$schema" || exit 8
+cat "$schema" > "$TEST_SCHEMA"
 printf '%s' "$TEST_EDITION" > "$out"
 `
 	if err := os.WriteFile(command, []byte(script), 0o700); err != nil {
@@ -42,6 +44,7 @@ printf '%s' "$TEST_EDITION" > "$out"
 	}
 	t.Setenv("TEST_ARGS", argsPath)
 	t.Setenv("TEST_INPUT", inputPath)
+	t.Setenv("TEST_SCHEMA", schemaPath)
 	t.Setenv("TEST_EDITION", testEdition)
 	adapter := Adapter{Name: "codex", CodexPath: command}
 	result, err := adapter.Run(context.Background(), pipeline.Request{Date: "2026-11-12", Prompt: "Editorial instructions", History: []pipeline.RecentEdition{{Date: "2026-11-11", Title: "Past", Stories: []pipeline.RecentStory{{Title: "Old story", URL: "https://example.com/old"}}}}})
@@ -66,6 +69,13 @@ printf '%s' "$TEST_EDITION" > "$out"
 	}
 	if !strings.Contains(string(input), "2026-11-12") || !strings.Contains(string(input), "Editorial instructions") || !strings.Contains(string(input), "https://example.com/old") {
 		t.Fatalf("prompt not passed on stdin: %s", input)
+	}
+	schema, err := os.ReadFile(schemaPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(schema), `"format": "uri"`) {
+		t.Fatalf("Codex schema uses unsupported URI format: %s", schema)
 	}
 }
 
