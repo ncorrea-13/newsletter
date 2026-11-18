@@ -2,14 +2,17 @@
 
 Referencia revisada el 13 de noviembre de 2026 para Codex CLI 0.167.0 y Claude Code 2.1.319. El acceso a cada modelo depende de la cuenta. Que un modelo aparezca acá no garantiza que la cuenta lo use.
 
-En cada `config/newsletters/<slug>.json`, `agent` elige el CLI y `model` recibe el valor exacto que ese CLI acepta en `--model`. Si omitís `model`, el proveedor usa su default.
+En cada `config/newsletters/<slug>.json`, `agent` elige el CLI y `model` recibe el valor exacto que ese CLI acepta en `--model`. Si omitís `model`, el proveedor usa su default. `reasoning_effort` es opcional; acepta `low`, `medium`, `high`, `xhigh` o `max`. Si se omite, cada CLI conserva su nivel predeterminado.
 
 ```json
 {
   "agent": "codex",
-  "model": "gpt-6-luna"
+  "model": "gpt-6-luna",
+  "reasoning_effort": "high"
 }
 ```
+
+Codex recibe `model_reasoning_effort`; Claude Code recibe `--effort`. Los niveles disponibles pueden depender del modelo elegido. Empezá con el valor omitido y habilitá `high` solo para newsletters que justifiquen el costo y la latencia.
 
 ## Codex CLI 0.167.0
 

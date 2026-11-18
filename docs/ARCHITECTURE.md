@@ -49,6 +49,7 @@ Cada JSON describe un newsletter y referencia su prompt:
   "prompt": "prompts/ejemplo.md",
   "agent": "codex",
   "model": "gpt-6-luna",
+  "reasoning_effort": "high",
   "schedule": {
     "days": ["monday", "wednesday", "friday"],
     "time": "06:00"
@@ -58,6 +59,8 @@ Cada JSON describe un newsletter y referencia su prompt:
 ```
 
 `config/defaults.json` define la zona horaria y los valores comunes: agente, timeout, contexto histórico, retención de feeds y `feed_base_url`.
+
+`reasoning_effort` es opcional por newsletter. El valor se pasa al CLI elegido; si se omite, se conserva el default del proveedor.
 
 - `history_context_editions`: ediciones recientes que recibe el agente. Default 5, máximo 30.
 - `feed_retention_editions`: ítems por feed. Default 30, máximo 200.
@@ -102,7 +105,7 @@ El agente devuelve un único objeto JSON, sin texto alrededor:
 ```
 
 - `title`, `content_html` y `stories` son obligatorios. El esquema está en `internal/agent/agent.go`.
-- `stories` alimenta la deduplicación: ninguna URL puede repetirse dentro de la edición ni respecto del contexto reciente.
+- `stories` alimenta el contexto editorial reciente. El agente evita repetir noticias según el prompt; una URL puede respaldar varias noticias o reutilizarse entre ediciones.
 - `content_html` pasa por una lista blanca de etiquetas (`p`, `h1` a `h3`, `ul`, `li`, `a`, `strong`, `em`, `br`, `img`, `table`, `thead`, `tbody`, `tr`, `th`, `td`) y atributos (`href`, `src`, `alt`, `width`). Cualquier otra etiqueta, un esquema distinto de `http(s)`, un `<` suelto o un comentario rechaza la edición.
 - Las ediciones guardadas antes de `content_html` conservan su resumen plano en el feed.
 
