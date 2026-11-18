@@ -44,18 +44,19 @@ type Schedule struct {
 }
 
 type Newsletter struct {
-	Slug           string   `json:"slug"`
-	Title          string   `json:"title"`
-	Description    string   `json:"description"`
-	SiteURL        string   `json:"site_url"`
-	Enabled        *bool    `json:"enabled"`
-	Prompt         string   `json:"prompt"`
-	Agent          string   `json:"agent"`
-	Model          string   `json:"model"`
-	TimeoutMinutes int      `json:"timeout_minutes"`
-	Schedule       Schedule `json:"schedule"`
-	PromptPath     string   `json:"-"`
-	CronWeekdays   []string `json:"-"`
+	Slug            string   `json:"slug"`
+	Title           string   `json:"title"`
+	Description     string   `json:"description"`
+	SiteURL         string   `json:"site_url"`
+	Enabled         *bool    `json:"enabled"`
+	Prompt          string   `json:"prompt"`
+	Agent           string   `json:"agent"`
+	Model           string   `json:"model"`
+	ReasoningEffort string   `json:"reasoning_effort,omitempty"`
+	TimeoutMinutes  int      `json:"timeout_minutes"`
+	Schedule        Schedule `json:"schedule"`
+	PromptPath      string   `json:"-"`
+	CronWeekdays    []string `json:"-"`
 }
 
 type Configuration struct {
@@ -217,6 +218,11 @@ func validateNewsletter(newsletter *Newsletter, filename, promptsDir string, def
 	}
 	if newsletter.Model != "" && !modelPattern.MatchString(newsletter.Model) {
 		return fmt.Errorf("model must be 1-100 characters: letters, digits, '.', '_', ':', '/', '-', not starting with '-'")
+	}
+	switch newsletter.ReasoningEffort {
+	case "", "low", "medium", "high", "xhigh", "max":
+	default:
+		return fmt.Errorf("reasoning_effort must be low, medium, high, xhigh, or max")
 	}
 	if newsletter.TimeoutMinutes == 0 {
 		newsletter.TimeoutMinutes = defaults.TimeoutMinutes

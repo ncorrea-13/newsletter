@@ -110,11 +110,19 @@ func TestRunPersistsEditionAndRegeneratesRSS(t *testing.T) {
 	}
 	duplicate := []byte(`{"title":"Next","content_html":"<p>Cuerpo</p>","stories":[{"title":"Old story again","source":"Example","url":"https://EXAMPLE.com:443/old#source","published_at":"2026-11-10","summary":"Repeating the same story."}]}`)
 	err = Run(context.Background(), loaded, "sample", dataDir, date.AddDate(0, 0, 1), fakeAgent{result: duplicate})
-	if err == nil || !strings.Contains(err.Error(), "duplicate story URL") {
-		t.Fatalf("repeated story URL error = %v, want duplicate URL rejection", err)
+	if err != nil {
+		t.Fatalf("reusing a historical URL failed: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(dataDir, "history", "sample", "2026-11-12.json")); !os.IsNotExist(err) {
-		t.Fatalf("duplicate story edition persisted: %v", err)
+	if _, err := os.Stat(filepath.Join(dataDir, "history", "sample", "2026-11-12.json")); err != nil {
+		t.Fatalf("edition with historical URL not persisted: %v", err)
+	}
+	sameEdition := []byte(`{"title":"Next","content_html":"<p>Cuerpo</p>","stories":[{"title":"First","source":"Example","url":"https://example.com/new","published_at":"2026-11-13","summary":"First."},{"title":"Second","source":"Example","url":"https://EXAMPLE.com:443/new#source","published_at":"2026-11-13","summary":"Second."}]}`)
+	err = Run(context.Background(), loaded, "sample", dataDir, date.AddDate(0, 0, 2), fakeAgent{result: sameEdition})
+	if err != nil {
+		t.Fatalf("distinct stories with a shared URL failed: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dataDir, "history", "sample", "2026-11-13.json")); err != nil {
+		t.Fatalf("edition with shared URL not persisted: %v", err)
 	}
 }
 

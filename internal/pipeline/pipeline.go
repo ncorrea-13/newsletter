@@ -133,15 +133,12 @@ func Run(ctx context.Context, configuration config.Configuration, slug, dataDir 
 		priorEditions = priorEditions[:configuration.Defaults.HistoryContextEditions]
 	}
 	history := make([]RecentEdition, 0, len(priorEditions))
-	seenURLs := make(map[string]struct{})
 	for _, prior := range priorEditions {
 		recent := RecentEdition{Date: prior.Date, Title: prior.Title, Stories: make([]RecentStory, 0, len(prior.Stories))}
 		for _, story := range prior.Stories {
-			normalized, err := normalizeURL(story.URL)
-			if err != nil {
+			if _, err := normalizeURL(story.URL); err != nil {
 				return fmt.Errorf("invalid URL in edition %s: %w", prior.Date, err)
 			}
-			seenURLs[normalized] = struct{}{}
 			recent.Stories = append(recent.Stories, RecentStory{Title: story.Title, Source: story.Source, URL: story.URL})
 		}
 		history = append(history, recent)
@@ -177,14 +174,10 @@ func Run(ctx context.Context, configuration config.Configuration, slug, dataDir 
 	}
 	edition.ContentHTML = sanitized
 	for i, story := range edition.Stories {
-		normalized, err := normalizeURL(story.URL)
+		_, err := normalizeURL(story.URL)
 		if strings.TrimSpace(story.Title) == "" || strings.TrimSpace(story.Source) == "" || err != nil || strings.TrimSpace(story.Summary) == "" {
 			return fmt.Errorf("story %d has invalid required fields or URL", i+1)
 		}
-		if _, duplicate := seenURLs[normalized]; duplicate {
-			return fmt.Errorf("story %d has duplicate story URL", i+1)
-		}
-		seenURLs[normalized] = struct{}{}
 		published, err := time.Parse("2006-01-02", story.Published)
 		if err != nil || published.Format("2006-01-02") != story.Published {
 			return fmt.Errorf("story %d has invalid published_at date", i+1)

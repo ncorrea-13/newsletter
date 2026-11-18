@@ -92,6 +92,22 @@ func TestLoadAcceptsAndRejectsModelValues(t *testing.T) {
 	}
 }
 
+func TestLoadAcceptsAndRejectsReasoningEffort(t *testing.T) {
+	body := func(effort string) string {
+		return `{"slug":"sample","enabled":true,"prompt":"prompts/sample.md","reasoning_effort":"` + effort + `","schedule":{"days":["monday"],"time":"06:00"}}`
+	}
+	root := writeFixture(t, "sample", body("high"), "prompt")
+	if loaded, err := Load(root); err != nil || loaded.Newsletters[0].ReasoningEffort != "high" {
+		t.Fatalf("valid reasoning effort rejected: %v", err)
+	}
+	for _, effort := range []string{"--high", "ultra", "high; shell"} {
+		root := writeFixture(t, "sample", body(effort), "prompt")
+		if _, err := Load(root); err == nil || !strings.Contains(err.Error(), "reasoning_effort") {
+			t.Fatalf("reasoning effort %q: Load error = %v, want validation error", effort, err)
+		}
+	}
+}
+
 func TestLoadRejectsInvalidFeedSiteURL(t *testing.T) {
 	root := writeFixture(t, "sample", `{"slug":"sample","enabled":true,"prompt":"prompts/sample.md","site_url":"javascript:alert(1)","schedule":{"days":["monday"],"time":"06:00"}}`, "prompt")
 	if _, err := Load(root); err == nil || !strings.Contains(err.Error(), "must be an absolute HTTP(S) URL") {
