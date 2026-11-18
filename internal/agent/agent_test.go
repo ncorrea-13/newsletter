@@ -130,6 +130,17 @@ func TestForNewsletterRejectsUnknownAndUnsupportedAgent(t *testing.T) {
 	}
 }
 
+func TestForNewsletterPassesReasoningEffort(t *testing.T) {
+	agent, err := ForNewsletter([]config.Newsletter{{Slug: "sample", Agent: "codex", ReasoningEffort: "high"}}, "sample")
+	if err != nil {
+		t.Fatal(err)
+	}
+	adapter, ok := agent.(Adapter)
+	if !ok || adapter.ReasoningEffort != "high" {
+		t.Fatalf("adapter = %#v, want reasoning effort high", agent)
+	}
+}
+
 func TestAdaptersPassConfiguredModel(t *testing.T) {
 	root := t.TempDir()
 	argsPath := filepath.Join(root, "args")
@@ -176,6 +187,55 @@ printf '%s' "$TEST_EDITION" > "$out"
 	}
 	if !strings.Contains(string(args), "--model\nsonnet\n") {
 		t.Fatalf("claude args missing model: %s", args)
+	}
+}
+
+func TestAdaptersPassConfiguredReasoningEffort(t *testing.T) {
+	root := t.TempDir()
+	argsPath := filepath.Join(root, "args")
+	t.Setenv("TEST_ARGS", argsPath)
+	t.Setenv("TEST_EDITION", testEdition)
+	codex := filepath.Join(root, "codex")
+	codexScript := `#!/bin/sh
+printf '%s\n' "$@" > "$TEST_ARGS"
+cat > /dev/null
+out=
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --output-last-message) shift; out=$1 ;;
+  esac
+  shift
+done
+printf '%s' "$TEST_EDITION" > "$out"
+`
+	if err := os.WriteFile(codex, []byte(codexScript), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := (Adapter{Name: "codex", ReasoningEffort: "high", CodexPath: codex}).Run(context.Background(), pipeline.Request{Date: "2026-11-12"}); err != nil {
+		t.Fatal(err)
+	}
+	args, err := os.ReadFile(argsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(args), "-c\nmodel_reasoning_effort=\"high\"\n") {
+		t.Fatalf("Codex args missing reasoning effort: %s", args)
+	}
+
+	claude := filepath.Join(root, "claude")
+	claudeScript := "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$TEST_ARGS\"\nprintf '%s' '{\"structured_output\":" + testEdition + ",\"result\":\"ok\"}'\n"
+	if err := os.WriteFile(claude, []byte(claudeScript), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := (Adapter{Name: "claude", ReasoningEffort: "high", ClaudePath: claude}).Run(context.Background(), pipeline.Request{Date: "2026-11-12"}); err != nil {
+		t.Fatal(err)
+	}
+	args, err = os.ReadFile(argsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(args), "--effort\nhigh\n") {
+		t.Fatalf("Claude args missing reasoning effort: %s", args)
 	}
 }
 
