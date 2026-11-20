@@ -12,7 +12,7 @@ RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags=
 # Los CLIs se instalan por npm con versiones exactas y lockfile de integridad.
 # --ignore-scripts evita ejecutar postinstall; los binarios nativos se copian
 # a mano desde los paquetes de plataforma.
-FROM --platform=$BUILDPLATFORM node:22-trixie-slim AS agents
+FROM --platform=$BUILDPLATFORM node:26-trixie-slim AS agents
 
 ARG TARGETARCH
 ARG CODEX_VERSION=0.167.0
