@@ -1,37 +1,37 @@
-# Arquitectura
+# Architecture
 
-## Objetivo
+[Español](ARCHITECTURE.es.md)
 
-Ejecutar newsletters con agentes de IA, guardar las ediciones en JSON y publicar RSS 2.0 estático. El proceso no escucha conexiones ni ofrece API de escritura.
+Newsletter Bot runs AI agents, stores editions as JSON, and publishes static RSS 2.0 feeds. The feed service has no write API.
 
-## Componentes
+## Components
 
 ```text
 config/newsletters/*.json + prompts/<slug>.md
-  └── validación + generación de crontab
+  └── validation + crontab generation
       └── Supercronic
           └── newsletter run <slug>
-              ├── config + prompt editorial
-              ├── historial reciente y lock por newsletter
-              ├── adaptador Codex o Claude (sin escritura)
-              ├── validación y sanitización del contrato
-              ├── historial por fecha editorial
-              └── regeneración atómica de feeds RSS
+              ├── configuration + editorial prompt
+              ├── recent history and per-newsletter lock
+              ├── Codex or Claude adapter
+              ├── output validation and sanitization
+              ├── history by editorial date
+              └── atomic replacement of RSS files
 ```
 
-| Componente | Responsabilidad |
+| Component | Responsibility |
 | --- | --- |
-| Configuración JSON | Newsletter, prompt, agente, modelo, horario y opciones operativas. |
-| Generador de schedule | Valida las configuraciones y produce el crontab para Supercronic. |
-| Supercronic | Ejecuta las tareas del crontab generado. |
-| CLI Go | Configuración, locks, validación, persistencia, logs y feeds. |
-| Codex / Claude | Investigan fuentes y redactan una edición según el prompt. |
-| Historial JSON | Fuente de verdad de las ediciones. Los feeds salen de aquí. |
-| Servidor de feeds | Sirve XML estáticos desde `data/public/`, en solo lectura. |
+| JSON configuration | Newsletter, prompt, agent, model, schedule, and operational settings. |
+| Schedule generator | Validates configuration and generates the Supercronic crontab. |
+| Supercronic | Runs scheduled jobs. |
+| Go CLI | Configuration, locks, validation, storage, logs, and feeds. |
+| Codex / Claude | Research sources and draft editions using the editorial prompt. |
+| JSON history | Source of truth for editions and feeds. |
+| Feed server | Serves static XML from `data/public/` in read-only mode. |
 
-El proyecto no usa base de datos, servicio de correo, frontend ni API de escritura. El crontab no es fuente de verdad: Go lo genera desde los JSON al iniciar el contenedor.
+Go generates the crontab from JSON at container startup. The project has no database, mail service, frontend, or write API.
 
-## Configuración declarativa
+## Configuration
 
 ```text
 config/
@@ -40,7 +40,7 @@ config/
 prompts/<slug>.md
 ```
 
-Cada JSON describe un newsletter y referencia su prompt:
+Each JSON file describes a newsletter and references its prompt:
 
 ```json
 {
@@ -58,95 +58,88 @@ Cada JSON describe un newsletter y referencia su prompt:
 }
 ```
 
-`config/defaults.json` define la zona horaria y los valores comunes: agente, timeout, contexto histórico, retención de feeds y `feed_base_url`.
+`config/defaults.json` sets the timezone and common agent, timeout, history, retention, and `feed_base_url` values. Set `reasoning_effort` per newsletter to pass it to the selected CLI. If you omit it, the provider uses its default.
 
-`reasoning_effort` es opcional por newsletter. El valor se pasa al CLI elegido; si se omite, se conserva el default del proveedor.
+- `history_context_editions`: recent editions passed to the agent. Default 5, maximum 30.
+- `feed_retention_editions`: items per feed. Default 30, maximum 200.
+- `feed_base_url`: feed base URL. When a newsletter has no `site_url`, its channel links to `<base>/<slug>.xml`.
 
-- `history_context_editions`: ediciones recientes que recibe el agente. Default 5, máximo 30.
-- `feed_retention_editions`: ítems por feed. Default 30, máximo 200.
-- `feed_base_url`: base pública de los feeds. Si un newsletter no define `site_url`, su canal apunta a `<base>/<slug>.xml`.
+Each slug has a matching JSON file and prompt. Go checks the names, prompt location, and configuration before starting Supercronic. Restart the container to apply changes; there is no hot reload.
 
-Cada slug tiene un JSON y un prompt con el mismo nombre. El validador comprueba que el prompt exista, que esté dentro de `prompts/` y que el slug sea único. Si una configuración es inválida, el arranque se detiene antes de Supercronic.
+## Edition run
 
-Cambiar un JSON o un prompt no requiere tocar Go. Reiniciar el contenedor aplica los cambios. No hay recarga en caliente.
+1. Validate the slug and configuration.
+2. Acquire the newsletter lock. A concurrent run for the same slug fails.
+3. Calculate the editorial date in the configured timezone.
+4. Read the prompt and compact recent-edition context.
+5. Run the provider as a separate process with a timeout.
+6. Validate the output contract.
+7. Save the edition with a temporary file and atomic link, without overwriting an existing date.
+8. Regenerate configured feeds and `all.xml`, replacing each file separately.
+9. Log the result and release the lock.
 
-## Ejecución de una edición
+To correct an existing edition, back it up and follow [Operations](OPERATIONS.md#correct-an-edition).
 
-1. Validar slug y configuración.
-2. Tomar el lock del newsletter. Una segunda ejecución del mismo slug falla.
-3. Calcular la fecha editorial en la zona horaria configurada.
-4. Leer el prompt y el contexto compacto de ediciones recientes.
-5. Ejecutar el proveedor como proceso separado, con timeout.
-6. Validar el contrato de salida (ver abajo).
-7. Guardar la edición con archivo temporal y rename atómico.
-8. Regenerar el feed del newsletter y `all.xml`, y validarlos antes de reemplazarlos.
-9. Registrar el resultado resumido y liberar el lock.
+## Output contract
 
-Una fecha editorial existente no se reemplaza de forma automática. Para corregir una edición, hace falta una operación explícita y un respaldo.
-
-## Contrato de salida
-
-El agente devuelve un único objeto JSON, sin texto alrededor:
+The agent returns one JSON object without surrounding text:
 
 ```json
 {
-  "title": "Título corto de la edición",
-  "content_html": "<h1>Título</h1><p>Cuerpo de la edición.</p>",
+  "title": "Short edition title",
+  "content_html": "<h1>Title</h1><p>Edition body.</p>",
   "stories": [
     {
-      "title": "Título de la noticia",
-      "source": "Nombre del medio",
+      "title": "Story title",
+      "source": "Source name",
       "url": "https://example.com/article",
       "published_at": "2026-11-11",
-      "summary": "Resumen breve con el dato principal."
+      "summary": "Short summary of the main fact."
     }
   ]
 }
 ```
 
-- `title`, `content_html` y `stories` son obligatorios. El esquema está en `internal/agent/agent.go`.
-- `stories` alimenta el contexto editorial reciente. El agente evita repetir noticias según el prompt; una URL puede respaldar varias noticias o reutilizarse entre ediciones.
-- `content_html` pasa por una lista blanca de etiquetas (`p`, `h1` a `h3`, `ul`, `li`, `a`, `strong`, `em`, `br`, `img`, `table`, `thead`, `tbody`, `tr`, `th`, `td`) y atributos (`href`, `src`, `alt`, `width`). Cualquier otra etiqueta, un esquema distinto de `http(s)`, un `<` suelto o un comentario rechaza la edición.
-- Las ediciones guardadas antes de `content_html` conservan su resumen plano en el feed.
+- `title`, `content_html`, and `stories` are required. The schema is in `internal/agent/agent.go`.
+- Stories provide recent editorial context. The prompt asks the agent to avoid repeats; a URL may support multiple stories or appear in multiple editions.
+- `content_html` permits tags `p`, `h1` through `h3`, `ul`, `li`, `a`, `strong`, `em`, `br`, `img`, `table`, `thead`, `tbody`, `tr`, `th`, and `td`, and attributes `href`, `src`, `alt`, and `width`. Other tags, non-HTTP(S) schemes, stray `<` characters, and comments reject the edition.
+- Editions saved before `content_html` retain their plain summaries in feeds.
 
-## Persistencia
+## Storage and feeds
 
 ```text
-data/history/<slug>/YYYY-MM-DD.json   ediciones completas (fuente de verdad)
-data/state/runs/*.json                resumen de cada ejecución
-data/state/locks/                     locks de flock
-data/public/<slug>.xml                feed por newsletter
-data/public/all.xml                   feed combinado
+data/history/<slug>/YYYY-MM-DD.json   complete editions, source of truth
+data/state/locks/                     flock locks
+data/public/<slug>.xml                per-newsletter feed
+data/public/all.xml                   combined feed
 ```
 
-El historial no se purga. Los feeds se derivan del historial: `newsletter generate-feeds` los reconstruye sin llamar a ningún agente.
+The application keeps all history. Run `newsletter generate-feeds` to rebuild feeds without calling an agent.
 
-## Feeds RSS
+- Each edition is an RSS 2.0 item, sorted by date descending. Individual feed GUIDs use `<slug>:<date>`; `all.xml` uses `all:<date>`. Editions on the same date share a GUID in the combined feed.
+- `<description>` contains sanitized HTML escaped as XML text. The reader renders it.
+- The channel link comes from `site_url`, then `feed_base_url` plus `/<slug>.xml`, then the latest item's link.
+- Go replaces each XML file atomically, not the whole group. A failed regeneration can leave some feeds updated and others unchanged. The saved edition remains in history; run `newsletter generate-feeds` to rebuild.
+- Regeneration removes XML files for slugs no longer configured.
 
-- RSS 2.0. Cada edición es un ítem con GUID estable `<slug>:<fecha>`, en orden descendente.
-- `<description>` contiene el HTML sanitizado de la edición, escapado como texto XML. El lector lo renderiza.
-- El `<link>` del canal sale de `site_url`. Si falta, sale de `feed_base_url` más `/<slug>.xml`. Si tampoco hay base, sale del enlace del ítem más reciente.
-- El reemplazo es atómico: si falla la generación, queda el XML anterior publicado.
-- Al regenerar, se borran los XML de slugs que ya no están configurados.
+## HTTP publishing
 
-## Publicación HTTP
+`newsletter serve` accepts only `GET` and `HEAD` for `.xml` files in the public directory. It does not list directories or serve other files. `newsletter-feeds` mounts `data/public/` read-only. See [Deployment](DEPLOYMENT.md) for interface and port settings.
 
-`newsletter serve` acepta solo `GET` y `HEAD` sobre archivos `.xml` del directorio público. No lista directorios ni sirve otros archivos. El servicio `newsletter-feeds` usa el mismo binario y monta `data/public` en solo lectura. El despliegue decide qué interfaz y qué puerto se publican (ver [DEPLOYMENT.md](DEPLOYMENT.md)).
+## History import
 
-## Importación de historial
+`newsletter import-history <directory>` converts an export of earlier newsletter emails into history. It applies the output contract, sanitizes HTML, requires at least one linked story, and does not overwrite an existing date. `--dry-run` reports the plan without writing.
 
-`newsletter import-history <directorio>` convierte un export de correos de ediciones anteriores en ediciones del historial. Aplica el mismo contrato: el HTML pasa por la lista blanca, cada edición necesita al menos una historia con enlace y nunca sobrescribe una fecha existente. `--dry-run` muestra el plan sin escribir nada.
+## Concurrency and failures
 
-## Concurrencia y fallos
+- Different newsletters can run concurrently; each slug has its own lock.
+- Feed generation uses a global lock to avoid overlapping writes.
+- Kernel `flock` locks release when a process exits, including after a crash.
+- The application does not retry agent runs.
+- The scheduler does not catch up missed jobs in bulk after restart.
 
-- Los newsletters distintos pueden correr en paralelo. Cada slug tiene su propio lock.
-- La regeneración de feeds usa un lock global, así que dos escrituras de RSS no se pisan.
-- Los locks usan `flock` del kernel. Se liberan al terminar el proceso, incluso tras una caída.
-- Los reintentos son limitados y solo aplican a errores transitorios. Autenticación inválida, cuota y errores editoriales no se reintentan.
-- Al reiniciar, el scheduler no ejecuta en lote las tareas perdidas.
+## Trust
 
-## Confianza
+Agent output and external pages are untrusted data. Go validates the output before saving.
 
-El resultado del agente y las páginas que consulta son datos no confiables. Go valida el contrato antes de guardar nada.
-
-Codex corre sin herramientas de shell (`features.shell_tool=false`) y con sandbox de solo lectura. Claude Code solo recibe `WebSearch` y `WebFetch`. Así el agente no tiene ruta para leer archivos locales, incluido el directorio de credenciales, y el sandbox le impide escribir. El agente no modifica configuración, prompts, historial ni directorio público.
+Codex runs with `--sandbox read-only` and `--disable shell_tool`. Claude Code receives `--safe-mode`, `--restricted`, `plan` mode, and only the `WebSearch` and `WebFetch` tools. CLI processes share the bot container and its mounts, including `auth/`; these settings do not replace verification of each provider's boundaries. Go validates and publishes the output.

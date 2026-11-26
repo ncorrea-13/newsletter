@@ -53,7 +53,6 @@ services:
     init: true
     pids_limit: 128
     restart: unless-stopped
-    network_mode: slirp4netns
     environment:
       FEED_DIR: /data/public
       FEED_LISTEN_ADDR: :8080

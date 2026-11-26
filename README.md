@@ -2,7 +2,7 @@
 
 # Newsletter Bot
 
-**Publicación editorial automatizada a través de feeds RSS estáticos**
+**Automated editorial publishing through static RSS feeds**
 
 [![CI](https://github.com/ncorrea-13/newsletter/actions/workflows/ci.yml/badge.svg)](https://github.com/ncorrea-13/newsletter/actions/workflows/ci.yml)
 [![Go](https://img.shields.io/badge/Go-1.27-00ADD8?logo=go&logoColor=white)](https://go.dev)
@@ -10,65 +10,71 @@
 [![Docker](https://img.shields.io/badge/Docker-GHCR-2496ED?logo=docker&logoColor=white)](https://github.com/ncorrea-13/newsletter/pkgs/container/newsletter-bot)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
+[Español](README.es.md)
+
 </div>
 
 ---
 
-Cada newsletter tiene un JSON de configuración y un prompt Markdown aparte. Supercronic ejecuta los horarios generados desde los JSON. Codex CLI o Claude Code investigan y redactan. Go valida cada edición y regenera los feeds RSS.
+Each newsletter has a JSON configuration and a Markdown prompt. Supercronic runs the schedules from those files. Codex CLI or Claude Code researches and writes each edition; Go validates it and regenerates the RSS feeds.
 
-El proyecto no tiene API de escritura, frontend, base de datos ni envío de correo. Un servicio HTTP de solo lectura sirve los XML. El despliegue decide cómo se expone ese servicio.
+The project has no write API, frontend, database, or mail delivery. A read-only HTTP service serves the XML files.
 
-## Flujo
+## Flow
 
 ```text
 Supercronic
   → newsletter run <slug>
-  → prompt + historial reciente
-  → Codex CLI o Claude Code
-  → validación estricta en Go
-  → edición JSON persistente
-  → feeds RSS 2.0 estáticos
-  → servicio HTTP de solo lectura
+  → prompt + recent history
+  → Codex CLI or Claude Code
+  → validation in Go
+  → persistent JSON edition
+  → static RSS 2.0 feeds
+  → read-only HTTP service
 ```
 
-Cada edición es un ítem RSS. Hay un feed por newsletter y un `all.xml` combinado. Un fallo no reemplaza una edición ni un feed válidos. El agente no escribe archivos: Go valida y publica.
+Each newsletter has an RSS feed; `all.xml` combines their editions. If feed generation fails after saving an edition, regenerate the XML from history.
 
 ## Stack
 
-| Capa         | Tecnología                                                     |
-| ------------ | -------------------------------------------------------------- |
-| Aplicación   | Go 1.27, sin dependencias externas                             |
-| Agentes      | Codex CLI y Claude Code, con versiones fijadas en la imagen    |
-| Scheduler    | Supercronic, con crontab generado desde los JSON               |
-| Imagen       | Debian Trixie slim, compilación multietapa, publicada en GHCR  |
-| Persistencia | Archivos JSON y XML en bind mounts                             |
-| Publicación  | HTTP de solo lectura                                           |
-| CI / CD      | GitHub Actions: tests en cada push, imagen multi-arch en `main` |
+| Layer | Technology |
+| --- | --- |
+| Application | Go 1.27, no external dependencies |
+| Agents | Codex CLI and Claude Code, pinned in the image |
+| Scheduler | Supercronic, with crontab generated from JSON |
+| Image | Debian Trixie slim, multi-stage build, published to GHCR |
+| Storage | JSON and XML files in bind mounts |
+| Publishing | Read-only HTTP |
+| CI / CD | GitHub Actions: tests on push, multi-arch images on `main` |
 
-## Quick Start
+## Quick start
 
-Pruebas:
+Run tests:
 
 ```sh
 go test -race ./cmd/... ./internal/...
 ```
 
-Configuración local. `config/` y `prompts/` no están en Git, así que partís de los ejemplos:
+If you do not already have local configuration, copy the examples:
 
 ```sh
 cp -r examples/config config
 cp -r examples/prompts prompts
 ```
 
-Construir la imagen:
+Do not run these commands over existing directories: they can overwrite files. The sample newsletter is disabled.
+
+Download the published images:
 
 ```sh
-podman compose -f compose.yaml -f compose.podman.yaml build newsletter-bot
+export NEWSLETTER_DIR="$PWD"
+export FEED_PORT=8080
+docker compose -f compose.prod.yaml pull
 ```
 
-Para desplegar la imagen publicada y habilitar el servicio de feeds, seguí [Despliegue](docs/DEPLOYMENT.md).
+Follow [Deployment](docs/DEPLOYMENT.md) to set permissions, authenticate agents, and start the services. The guide also covers Podman.
 
-## Configuración
+## Configuration
 
 ```text
 config/
@@ -77,16 +83,16 @@ config/
 prompts/<slug>.md
 ```
 
-Cada slug tiene un JSON y un prompt con el mismo nombre. Cambiar horarios o prompts no requiere tocar Go. Reiniciar el contenedor aplica los cambios.
+Each slug has a JSON file and a prompt with the same name. Restart the container to apply changes.
 
-## Documentación
+## Documentation
 
-- [Arquitectura](docs/ARCHITECTURE.md): componentes, configuración, contrato de salida, feeds y límites de confianza.
-- [Despliegue](docs/DEPLOYMENT.md): imagen, compose, autenticación de agentes y exposición de feeds.
-- [Operación](docs/OPERATIONS.md): cambios de configuración, ejecuciones manuales, importación, diagnóstico y respaldos.
-- [Modelos](docs/MODELS.md): catálogo de modelos de Codex y Claude Code.
-- [Instrucciones para agentes](AGENTS.md): reglas de trabajo sobre este repo.
+- [Architecture](docs/ARCHITECTURE.md): components, configuration, output contract, feeds, and trust boundaries.
+- [Deployment](docs/DEPLOYMENT.md): images, Compose, agent authentication, and feed exposure.
+- [Operations](docs/OPERATIONS.md): configuration changes, manual runs, imports, troubleshooting, and backups.
+- [Models](docs/MODELS.md): Codex and Claude Code model catalog.
+- [Agent instructions](AGENTS.md): rules for working on this repository.
 
-## Licencia
+## License
 
-Distribuido bajo la licencia MIT. Ver [LICENSE](LICENSE).
+Distributed under the MIT license. See [LICENSE](LICENSE).
