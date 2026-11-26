@@ -1,8 +1,10 @@
-# Modelos de agentes
+# Agent models
 
-Referencia revisada el 13 de noviembre de 2026 para Codex CLI 0.167.0 y Claude Code 2.1.319. El acceso a cada modelo depende de la cuenta. Que un modelo aparezca acá no garantiza que la cuenta lo use.
+[Español](MODELS.es.md)
 
-En cada `config/newsletters/<slug>.json`, `agent` elige el CLI y `model` recibe el valor exacto que ese CLI acepta en `--model`. Si omitís `model`, el proveedor usa su default. `reasoning_effort` es opcional; acepta `low`, `medium`, `high`, `xhigh` o `max`. Si se omite, cada CLI conserva su nivel predeterminado.
+This reference covers Codex CLI 0.167.0 and Claude Code 2.1.319 and was reviewed on November 13, 2026. Check your account's access before choosing a model.
+
+In `config/newsletters/<slug>.json`, `agent` selects the CLI and `model` takes the exact value accepted by its `--model` flag. If `model` is omitted, the provider uses its default. Optional `reasoning_effort` accepts `low`, `medium`, `high`, `xhigh`, or `max`; otherwise the CLI default applies.
 
 ```json
 {
@@ -12,52 +14,52 @@ En cada `config/newsletters/<slug>.json`, `agent` elige el CLI y `model` recibe 
 }
 ```
 
-Codex recibe `model_reasoning_effort`; Claude Code recibe `--effort`. Los niveles disponibles pueden depender del modelo elegido. Empezá con el valor omitido y habilitá `high` solo para newsletters que justifiquen el costo y la latencia.
+Codex receives `model_reasoning_effort`; Claude Code receives `--effort`. Available levels may depend on the model. Start without an explicit value and use `high` for newsletters that justify the cost and latency.
 
 ## Codex CLI 0.167.0
 
-Valores de `codex debug models` en la imagen instalada, contrastados con el [catálogo oficial de Codex](https://developers.openai.com/codex/models).
+Values from `codex debug models` in the installed image, checked against the [official Codex catalog](https://developers.openai.com/codex/models).
 
-| Nombre | Valor para `model` | Uso orientativo |
+| Name | `model` value | Suggested use |
 | --- | --- | --- |
-| GPT-6 Luna | `gpt-6-luna` | Resúmenes, extracción y tareas repetibles. Opción recomendada para newsletters. |
-| GPT-5.6 Luna | `gpt-5.6-luna` | Alternativa compacta del catálogo instalado. |
-| GPT-6 Sol | `gpt-6-sol` | Uso general y trabajo técnico sostenido. |
-| GPT-6.1 Sol | `gpt-6.1-sol` | Trabajo técnico más exigente. |
-| GPT-5.6 Sol | `gpt-5.6-sol` | Alternativa anterior de propósito general. |
-| GPT-6.1 Terra | `gpt-6.1-terra` | Redacción y tareas cotidianas. |
-| GPT-5.6 Terra | `gpt-5.6-terra` | Alternativa anterior para redacción. |
-| GPT-6 Astra | `gpt-6-astra` | Casos complejos. Para resúmenes probablemente sobra. |
+| GPT-6 Luna | `gpt-6-luna` | Summaries, extraction, and repeatable tasks. Recommended starting point for newsletters. |
+| GPT-5.6 Luna | `gpt-5.6-luna` | Compact alternative in the installed catalog. |
+| GPT-6 Sol | `gpt-6-sol` | General use and sustained technical work. |
+| GPT-6.1 Sol | `gpt-6.1-sol` | More demanding technical work. |
+| GPT-5.6 Sol | `gpt-5.6-sol` | Earlier general-purpose alternative. |
+| GPT-6.1 Terra | `gpt-6.1-terra` | Writing and everyday tasks. |
+| GPT-5.6 Terra | `gpt-5.6-terra` | Earlier writing alternative. |
+| GPT-6 Astra | `gpt-6-astra` | Complex cases; likely unnecessary for summaries. |
 
-El catálogo local también muestra `gpt-5.5`. La [documentación oficial](https://developers.openai.com/codex/models#gpt-55-retirement) indica que Codex lo retiró con inicio de sesión de ChatGPT el 14 de octubre de 2026. No lo uses con esa autenticación. Los modelos ocultos del catálogo no son opciones normales.
+The local catalog also lists `gpt-5.5`. The [official documentation](https://developers.openai.com/codex/models#gpt-55-retirement) says Codex retired it for ChatGPT sign-in on October 14, 2026. Do not use it with that authentication. Hidden catalog models are not standard options.
 
 ## Claude Code 2.1.319
 
-El CLI acepta alias y nombres completos. Un alias apunta al modelo recomendado que el proveedor tenga disponible. Para fijar una versión, usá el ID completo.
+The CLI accepts aliases and full names. An alias points to the model the provider recommends at the time of the request. Use a full ID to pin a version.
 
-| Nombre / familia | Alias para `model` | ID completo documentado | Disponibilidad y uso |
+| Name / family | `model` alias | Documented full ID | Availability and use |
 | --- | --- | --- | --- |
-| Haiku 5.5 | `haiku` | `claude-haiku-5-5` | Rápido y eficiente. Recomendado para resúmenes. |
-| Sonnet 5.5 | `sonnet` | `claude-sonnet-5-5` | Buen balance general. |
-| Opus 5.5 | `opus` | `claude-opus-5-5` | Tareas complejas. |
-| Fable 5.2 | `fable` | `claude-fable-5-2` | Razonamiento exigente y tareas largas. Costo mayor. |
-| Mythos 5.2 | ID completo | `claude-mythos-5-2` | Acceso limitado, sujeto a aprobación de Anthropic. |
-| Haiku 4.5 | ID completo | `claude-haiku-4-5` | Versión anterior, aún listada. |
-| Sonnet 5 | ID completo | `claude-sonnet-5` | Versión anterior, aún listada. |
-| Sonnet 4.6 | ID completo | `claude-sonnet-4-6` | Versión anterior, aún listada. |
-| Sonnet 4.5 | ID completo | `claude-sonnet-4-5` | Versión anterior, aún listada. |
-| Opus 5 | ID completo | `claude-opus-5` | Versión anterior, aún listada. |
-| Opus 4.8 | ID completo | `claude-opus-4-8` | Versión anterior, aún listada. |
-| Opus 4.7 | ID completo | `claude-opus-4-7` | Versión anterior, aún listada. |
-| Opus 4.6 | ID completo | `claude-opus-4-6` | Versión anterior, aún listada. |
-| Opus 4.5 | ID completo | `claude-opus-4-5` | Versión anterior, aún listada. |
-| Fable 5.1 | ID completo | `claude-fable-5-1` | Versión anterior, aún listada. |
-| Fable 5 | ID completo | `claude-fable-5` | Versión anterior, aún listada. |
-| Mythos 5.1 | ID completo | `claude-mythos-5-1` | Acceso limitado, sujeto a aprobación de Anthropic. |
-| Mythos 5 | ID completo | `claude-mythos-5` | Acceso limitado, sujeto a aprobación de Anthropic. |
+| Haiku 5.5 | `haiku` | `claude-haiku-5-5` | Fast and efficient; recommended for summaries. |
+| Sonnet 5.5 | `sonnet` | `claude-sonnet-5-5` | General-purpose balance. |
+| Opus 5.5 | `opus` | `claude-opus-5-5` | Complex tasks. |
+| Fable 5.2 | `fable` | `claude-fable-5-2` | Demanding reasoning and long tasks; higher cost. |
+| Mythos 5.2 | Full ID | `claude-mythos-5-2` | Limited access, subject to Anthropic approval. |
+| Haiku 4.5 | Full ID | `claude-haiku-4-5` | Earlier version, still listed. |
+| Sonnet 5 | Full ID | `claude-sonnet-5` | Earlier version, still listed. |
+| Sonnet 4.6 | Full ID | `claude-sonnet-4-6` | Earlier version, still listed. |
+| Sonnet 4.5 | Full ID | `claude-sonnet-4-5` | Earlier version, still listed. |
+| Opus 5 | Full ID | `claude-opus-5` | Earlier version, still listed. |
+| Opus 4.8 | Full ID | `claude-opus-4-8` | Earlier version, still listed. |
+| Opus 4.7 | Full ID | `claude-opus-4-7` | Earlier version, still listed. |
+| Opus 4.6 | Full ID | `claude-opus-4-6` | Earlier version, still listed. |
+| Opus 4.5 | Full ID | `claude-opus-4-5` | Earlier version, still listed. |
+| Fable 5.1 | Full ID | `claude-fable-5-1` | Earlier version, still listed. |
+| Fable 5 | Full ID | `claude-fable-5` | Earlier version, still listed. |
+| Mythos 5.1 | Full ID | `claude-mythos-5-1` | Limited access, subject to Anthropic approval. |
+| Mythos 5 | Full ID | `claude-mythos-5` | Limited access, subject to Anthropic approval. |
 
-La [guía oficial de Claude Code](https://docs.anthropic.com/en/docs/claude-code/model-config) documenta los alias. La [lista oficial de modelos](https://platform.claude.com/docs/en/models/overview) da los IDs y marca los modelos con acceso limitado o retirados. El login de Claude.ai o Team puede resolver los alias de otra forma que la API de Anthropic. Antes de activar el scheduler, probá con una corrida real.
+The [Claude Code guide](https://docs.anthropic.com/en/docs/claude-code/model-config) documents aliases. The [model list](https://platform.claude.com/docs/en/models/overview) provides IDs and marks limited or retired models. Claude.ai or Team sign-in may resolve aliases differently from the Anthropic API. Test a real run before starting the scheduler.
 
-## Recomendación inicial
+## Starting point
 
-Para resúmenes de noticias, empezá con `gpt-6-luna` o con `haiku`. Elegí Codex o Claude por newsletter con `agent`. No hace falta correr los dos sobre el mismo newsletter, salvo que quieras comparar resultados a propósito.
+For news summaries, start with `gpt-6-luna` or `haiku`. Select Codex or Claude per newsletter using `agent`. Run both on the same newsletter only if you want to compare their results.

@@ -1,116 +1,104 @@
-# Operación y recuperación
+# Operations and recovery
 
-Este documento es el runbook del despliegue. La arquitectura está en [ARCHITECTURE.md](ARCHITECTURE.md) y la instalación en [DEPLOYMENT.md](DEPLOYMENT.md).
+[Español](OPERATIONS.es.md)
 
-## Cambios de configuración
+Use Docker Compose and `compose.prod.yaml` for the commands below. Set `NEWSLETTER_DIR` and `FEED_PORT` as described in [Deployment](DEPLOYMENT.md). For the design, see [Architecture](ARCHITECTURE.md).
 
-Cada newsletter tiene `config/newsletters/<slug>.json` y `prompts/<slug>.md`, con el mismo slug.
+## Configuration changes
 
-- **Frecuencia:** editá `schedule.days` o `schedule.time` en el JSON.
-- **Comportamiento editorial:** editá el Markdown del mismo slug.
-- **Nuevo newsletter:** creá ambos archivos con el mismo slug.
-- **Desactivar:** `"enabled": false`.
+Each newsletter has `config/newsletters/<slug>.json` and `prompts/<slug>.md`.
 
-Después de cada cambio, reiniciá el contenedor. No edites un crontab aparte ni pongas horarios dentro de los prompts.
+- **Schedule:** edit `schedule.days` or `schedule.time` in the JSON.
+- **Editorial behavior:** edit the matching Markdown prompt.
+- **New newsletter:** create both files with the same slug.
+- **Disable:** set `"enabled": false`.
 
-Antes de reiniciar, validá la configuración:
+Validate before restarting the container:
 
 ```sh
-podman-compose -f compose.prod.yaml run --rm newsletter-bot validate-config
-podman-compose -f compose.prod.yaml run --rm newsletter-bot generate-crontab
+docker compose -f compose.prod.yaml run --rm newsletter-bot validate-config
+docker compose -f compose.prod.yaml run --rm newsletter-bot generate-crontab
 ```
 
-Una configuración inválida impide arrancar el scheduler.
+Invalid configuration prevents scheduler startup. Do not edit a separate crontab or put schedules in prompts.
 
-## Estado
+## Status
 
 ```sh
-podman-compose -f compose.prod.yaml run --rm newsletter-bot status
+docker compose -f compose.prod.yaml run --rm newsletter-bot status
+docker compose -f compose.prod.yaml ps
+docker compose -f compose.prod.yaml logs -f newsletter-bot
 ```
 
-Muestra por newsletter si está habilitado, el agente, el horario y la fecha de la última edición. No imprime títulos, resúmenes, prompts ni credenciales.
+`status` shows whether each newsletter is enabled, its agent, schedule, and latest edition date. It does not print titles, summaries, prompts, or credentials.
 
-Para ver el scheduler y sus logs:
+Each `run` logs JSON start and end events with slug, agent, requested model, result, and duration. If `model` is unset, the log records `provider-default`; that does not identify the model behind a provider alias.
+
+## Manual run
 
 ```sh
-podman ps --format '{{.Names}} {{.Status}}' | grep newsletter
-podman logs -f <contenedor-del-scheduler>
+docker compose -f compose.prod.yaml run --rm newsletter-bot run <slug>
 ```
 
-Cada `run` emite eventos JSON de inicio y fin, con newsletter, agente, modelo solicitado, resultado y duración. Si `model` no está configurado, el log registra `provider-default`. Ese valor no confirma qué versión resuelve el proveedor detrás de un alias.
+`--rm` removes the one-off container after the run. A run consumes provider usage. If an edition exists for the date, Go rejects the run before calling the agent. Different slugs can run in parallel; wait for an active run of the same slug to finish.
 
-## Ejecución manual
-
-```sh
-podman-compose -f compose.prod.yaml run --rm newsletter-bot run <slug>
-```
-
-Usá `--rm` para que el contenedor no quede reiniciándose. La ejecución consume uso del proveedor. Si la fecha ya tiene edición, el comando la rechaza antes de llamar al agente.
-
-Los newsletters distintos pueden correr en paralelo, pero no dos veces el mismo slug. Si una corrida programada del mismo slug sigue activa, esperá a que termine.
-
-## Importación de historial
-
-Para importar un export de correos de ediciones anteriores:
+## History import
 
 ```sh
-podman-compose -f compose.prod.yaml run --rm -T \
+docker compose -f compose.prod.yaml run --rm -T \
   -v "$PWD/import:/import:ro" newsletter-bot \
-  import-history /import/<directorio> --dry-run
+  import-history /import/<directory> --dry-run
 ```
 
-Revisá el plan y, después, repetí el comando sin `--dry-run`. Una fecha que ya existe no se sobrescribe. Los feeds se regeneran al final de la importación.
+Review the plan, then repeat without `--dry-run`. The import does not overwrite an existing date. It regenerates feeds at the end.
 
 ## Feeds
 
-`generate-feeds` reconstruye todos los XML desde el historial. No llama a agentes ni modifica los JSON:
+`generate-feeds` rebuilds XML from history without calling agents or modifying JSON:
 
 ```sh
-podman-compose -f compose.prod.yaml run --rm newsletter-bot generate-feeds
+docker compose -f compose.prod.yaml run --rm newsletter-bot generate-feeds
 ```
 
-El servicio de feeds lee `data/public/` en solo lectura. Si cambiás `feed_base_url` o `site_url`, reconstruí los feeds para que el `<link>` del canal se actualice.
+The feed service reads `data/public/` read-only. Rebuild feeds after changing `feed_base_url` or `site_url` to update channel links.
 
-## Diagnóstico
+## Troubleshooting
 
-| Síntoma | Revisar |
+| Symptom | Check |
 | --- | --- |
-| El scheduler no ejecuta tareas | Estado del scheduler, crontab, zona horaria y logs del contenedor. |
-| Agente no encontrado | Binario, arquitectura y PATH de la imagen. |
-| Error de autenticación | Sesión en `auth/`, HOME y permisos. Reautenticá con los comandos de [DEPLOYMENT.md](DEPLOYMENT.md). |
-| Cuota o límite | Error del proveedor y plan asociado. No reintentar en bucle. |
-| Timeout | Duración, disponibilidad de las fuentes y timeout configurado. Subir el timeout solo con evidencia. |
-| `invalid content_html` | El agente devolvió etiquetas o atributos fuera de la lista blanca, o un `<` suelto. La edición no se guarda. Revisá el prompt y el resultado. |
-| `story N has invalid required fields or URL` | Una historia sin título, fuente, URL absoluta o resumen. Revisá el prompt. No relajes la validación. |
-| `edition already exists` | La fecha ya tiene edición. Es el comportamiento esperado. |
-| Feed sin ítems | Confirmá que `data/public/` tiene XML y que el volumen del servicio de feeds apunta a `data/public`. |
-| Feed vacío o 404 | Reconstruí con `generate-feeds` y revisá el mount del servicio. |
-| Lock retenido | El lock se libera cuando termina el proceso. Antes de intervenir, verificá que no haya otra ejecución del mismo slug. No borres archivos de lock en uso. |
+| Scheduler does not run jobs | Scheduler status, crontab, timezone, and container logs. |
+| Agent not found | Binary, architecture, and image PATH. |
+| Authentication error | Session in `auth/`, HOME, and permissions. Reauthenticate using [Deployment](DEPLOYMENT.md). |
+| Quota or rate limit | Provider error and account plan. Do not retry in a loop. |
+| Timeout | Duration, source availability, and configured timeout. Increase it only with evidence. |
+| `invalid content_html` | Unsupported HTML tags or attributes, or a stray `<`. The edition is not saved; inspect the prompt and result. |
+| `story N has invalid required fields or URL` | Missing title, source, absolute URL, or summary. Inspect the prompt. Do not relax validation. |
+| `edition already exists` | An edition already exists for the date. |
+| Empty feed or 404 | Rebuild with `generate-feeds`; check `data/public/` and the feed-service mount. |
+| Lock held | Check for another active run. The process releases its lock on exit; do not delete lock files in use. |
 
-## Corrección de una edición
+## Correct an edition
 
-Una ejecución normal no reemplaza una edición con la misma fecha. Para corregirla:
+1. Copy `data/history/<slug>/<date>.json` outside `data/`.
+2. Edit or delete the JSON as needed. Check file permissions.
+3. Run `generate-feeds`.
+4. Validate the resulting XML.
 
-1. Copiá `data/history/<slug>/<fecha>.json` a un lugar fuera de `data/`.
-2. Editá el JSON o bórralo, según el caso. Usá `podman unshare` si el ownership lo requiere.
-3. Ejecutá `generate-feeds`.
-4. Validá el XML resultante.
+If Go saved the edition but feed regeneration failed, run `generate-feeds`. Go replaces XML files one at a time, so some may have changed before the failure.
 
-Una ejecución fallida no borra ni sobrescribe la edición ni el XML válidos anteriores.
+## Backups
 
-## Respaldos
+- **Daily:** `data/history/` and `data/state/`.
+- **Credentials:** `auth/` in encrypted storage with restricted access, or reauthenticate after restoration.
+- **Regenerable:** `data/public/`, using `generate-feeds`.
 
-- **Diario:** `data/history/` y `data/state/`.
-- **Credenciales:** `auth/`, solo en almacenamiento cifrado y con acceso restringido. Alternativa: reautenticar al restaurar.
-- **Regenerable:** `data/public/`, que sale del historial con `generate-feeds`.
+Test restoration: restore data, check container-user permissions, regenerate feeds, validate XML, and check the feed service response.
 
-Probá la restauración antes de dar por válido un respaldo. Recuperá los datos, verificá los permisos del usuario del contenedor, ejecutá `generate-feeds`, validá los XML y comprobá la respuesta del servicio de feeds.
+## Operational security
 
-## Seguridad operativa
-
-- El servicio de feeds sirve solo XML de `data/public/`.
-- JSON, estado y credenciales son privados.
-- El scheduler no publica puertos. El servicio de feeds se levanta solo con el perfil `feeds`.
-- No se usa modo privilegiado ni socket de Docker.
-- Las páginas externas son datos no confiables.
-- Cualquier cambio de exposición pública (dominio, DNS, túnel o puertos) requiere aprobación explícita.
+- The feed service only serves XML from `data/public/`.
+- Protect JSON, state, and credentials.
+- The scheduler publishes no ports. The feed service requires the `feeds` profile.
+- The deployment uses neither privileged mode nor the Docker socket.
+- Treat external pages as untrusted data.
+- Public exposure, DNS, tunnels, or port changes require explicit approval.
